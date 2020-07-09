@@ -70,8 +70,6 @@ int main(){
 	if(fd < 0){
 		printf("Opening Error");
 	}
-	//unsigned char* buff = calloc(0, 2048);
-	//write(fd, buff, 2048);
 	int num = checkb(fd, 0);
 	printf("first: %d\n", num);
 	chanb(fd, num, 0);
