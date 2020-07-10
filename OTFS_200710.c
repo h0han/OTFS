@@ -57,7 +57,7 @@ typedef struct Inode { // size : 128 * 4 = 512b
 	Dir_Block* DB[12]; // DB needs to have 12 Dir_Block so it needs malloc(12 * 4kb)
 } inode;
 
-int find_dir(const char* path) { // return -1 means error
+int otfind(const char* path) { // return -1 means error
 	// get file	
 	int fd;
 	char region[10] = "region";
@@ -203,27 +203,31 @@ int getattr(const char *path, struct stat *buf) {
 
 	if (strcmp(path, "/") == 0) {
 		inode root = inode_table[0];
-		buf->st_mode = S_IFDIR |0755;
-		buf->st_size = root.size;
-		//buf->st_nlink = ;
-		//buf->st_blocks = ;
 		buf->st_ino = root.inode_num;
+		buf->st_mode = S_IFDIR |0755;
+		buf->st_nlink = 1;
+		//buf->st_uid;
+		//buf->st_gid;
+		buf->st_size = root.size;
+		//buf->st_blocks = ;
 		buf->st_atime = time(NULL);
 		buf->st_ctime = time(NULL);
 		buf->st_mtime = time(NULL);;
 	}
 	else { 
 		int temp_inodenum;
-		if ((temp_inodenum = find_dir(path)) == -1) { // get inode from path
+		if ((temp_inodenum = otfind(path)) == -1) { // get inode from path
 			printf("There is no file\n");
 		}
 		else {
 			inode temp = inode_table[temp_inodenum];
-			buf->st_mode = S_IFDIR |0755;
-			buf->st_size = temp.size;
-			// buf->st_nlink = ;
-			// buf->st_blocks = ;
 			buf->st_ino = temp.inode_num;
+			buf->st_mode = S_IFDIR |0755;
+			buf->st_nlink = 1;
+			//buf->st_uid;
+			//buf->st_gid;
+			buf->st_size = temp.size;
+			// buf->st_blocks = ;
 			buf->st_atime = time(NULL);
 			buf->st_ctime = time(NULL);
 			buf->st_mtime = time(NULL);
