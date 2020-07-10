@@ -4,7 +4,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-int checkb(int fd, int iorb){
+int checkb(int iorb){
+	int fd = open("region.c", O_RDWR|O_CREAT, 0666);
 	if (iorb == 0) { //for inode bitmap
         	lseek(fd, 1024, SEEK_SET);
         	unsigned char* buf = malloc(1024);
@@ -43,31 +44,24 @@ int checkb(int fd, int iorb){
 
 }
 
-void chanb(int fd, int num, int iorb) {
-    unsigned char* buf = malloc(1);
-    if (iorb == 0) {
-        lseek(fd, 1024 + (num/8) * 512, SEEK_SET);
-    }
-    else {
-        lseek(fd, 2048 + (num/8) * 4096, SEEK_SET);
-    }
-    read(fd, buf, 1);
-    lseek(fd, -1, SEEK_CUR);
-    unsigned char com = num % 8;
-    com = 128 >> com;
-    unsigned char new = buf[0] ^ com;
-    buf[0] = new;
-    write(fd, buf, 1);
-    free(buf);
+void chanb(int num, int iorb) {
+	int fd = open("region.c", O_RDWR|O_CREAT, 0666);
+	unsigned char* buf = malloc(1);
+	if (iorb == 0) {
+		lseek(fd, 1024 + (num/8) * 512, SEEK_SET);
+	}
+	else {
+		lseek(fd, 2048 + (num/8) * 4096, SEEK_SET);
+	}
+	read(fd, buf, 1);
+	lseek(fd, -1, SEEK_CUR);
+	unsigned char com = num % 8;
+	com = 128 >> com;
+	unsigned char new = buf[0] ^ com;
+	buf[0] = new;
+	write(fd, buf, 1);
+	free(buf);
 }
 
 int main(){
-	int fd = open("text.txt", O_RDWR|O_CREAT, 0666);
-	if(fd < 0){
-		printf("Opening Error");
-	}
-	int num = checkb(fd, 0);
-	chanb(fd, num, 0);
-	num = checkb(fd, 0);
-	close(fd);
 }
