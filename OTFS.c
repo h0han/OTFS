@@ -13,7 +13,7 @@ typedef struct File_Block{
 typedef struct Dir_Block{
 	char name_list[128][28]; // In map, there are 128 files;
 	int inode_num[128];
-} Dir_Block;
+} Dir_Block; //sizeof(Dir_Block) == 4KB
 
 typedef struct Super_block { // size : 256 * 4 = 1024
 // block count?
@@ -37,7 +37,7 @@ typedef struct Super_block { // size : 256 * 4 = 1024
 	int num_file;
 	int allocated_block;
 	
-	int ig[246]; // For 1024 bytes
+	int ig[247]; // For 1024 bytes
 } superblock;
 
 typedef struct Inode_bitmap { // size : 1024
@@ -49,11 +49,11 @@ typedef struct Data_bitmap { // size : 1024
 } dbitmap;
 
 typedef struct Inode { // size : 128 * 4 = 512b 
-	char* filename;
+	char* filename; // does it need malloc?
 	int inodenum;
 	int file_or_dir; // file == 0, dir == 1;
 	File_Block FB[12];
-	Dir_Block DB[12];
+	Dir_Block DB[12]; // pointer or now?
 } inode;
 
 int find_dir(const char* path) { // return -1 means error
