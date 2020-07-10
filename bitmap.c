@@ -63,5 +63,5 @@ void chanb(int num, int iorb) {
 	free(buf);
 }
 
-int main(){
+void main(){
 }
