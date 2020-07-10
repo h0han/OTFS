@@ -54,12 +54,8 @@ void chanb(int fd, int num, int iorb) {
     read(fd, buf, 1);
     lseek(fd, -1, SEEK_CUR);
     unsigned char com = num % 8;
-    printf("com: %d\n", com);
     com = 128 >> com;
-    printf("change com: %d\n", com);
-    printf("buf: %d\n", buf[0]);
     unsigned char new = buf[0] ^ com;
-    printf("after caclue: %d\n", new);
     buf[0] = new;
     write(fd, buf, 1);
     free(buf);
@@ -71,9 +67,7 @@ int main(){
 		printf("Opening Error");
 	}
 	int num = checkb(fd, 0);
-	printf("first: %d\n", num);
 	chanb(fd, num, 0);
 	num = checkb(fd, 0);
-	printf("second %d\n", num);
 	close(fd);
 }
