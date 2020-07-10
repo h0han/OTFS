@@ -50,10 +50,11 @@ typedef struct Data_bitmap { // size : 1024
 
 typedef struct Inode { // size : 128 * 4 = 512b 
 	char* filename; // does it need malloc?
-	int inodenum;
+	long size;
+	int inode_num;
 	int file_or_dir; // file == 0, dir == 1;
-	File_Block FB[12];
-	Dir_Block DB[12]; // pointer or now?
+	File_Block* FB[12];
+	Dir_Block* DB[12]; // DB needs to have 12 Dir_Block so it needs malloc(12 * 4kb)
 } inode;
 
 int find_dir(const char* path) { // return -1 means error
@@ -80,12 +81,13 @@ int find_dir(const char* path) { // return -1 means error
 	
 	int inode_num; // this is return value
 	int root_check = 0;
-	char* temp; // used strtok
+	char temp[100]; // used strtok
 	strcpy(temp, path); 
 	char *ptr; // used strtok
 	int i; // used for loop
 	int j; // used for loop 
-	
+	int num_DB;
+
 	inode fileinode;
 	char name[28];
 	// find dir with path	
@@ -98,10 +100,10 @@ int find_dir(const char* path) { // return -1 means error
 		else {
 			fileinode = inode_table[inode_num];
 		}
-		for (i = 0; i < 12; i++) {
+		for (i = 0; i <= (fileinode.size / 4096); i++) { 
 			for (j = 0; j < 128; j++) {
-				if ((strcmp((fileinode.DB[i].name_list[j]), ptr)) == 0) {
-					inode_num = fileinode.DB[i].inode_num[j];
+				if ((strcmp((fileinode.DB[i]->name_list[j]), ptr)) == 0) {
+					inode_num = (fileinode.DB[i])->inode_num[j];
 				}
 			}
 		}
@@ -147,8 +149,10 @@ int init()
 	write(fd, inode_table, super_block->itable_size);
 
 	inode root;
+	root.filename = malloc(28);
+	root.size = 4096; // at first, root's size = 4kb (1 Datablock)
 	strcpy(root.filename, "/");
-	root.inodenum = 0;
+	root.inode_num = 0;
 	root.file_or_dir = 1;
 	inode_table[0] = root;
 	// root information;
@@ -198,11 +202,12 @@ int getattr(const char *path, struct stat *buf) {
 	strcpy(temp, path);
 
 	if (strcmp(path, "/") == 0) {
+		inode root = inode_table[0];
 		buf->st_mode = S_IFDIR |0755;
-		//buf->st_size = ;
+		buf->st_size = root.size;
 		//buf->st_nlink = ;
 		//buf->st_blocks = ;
-		//buf->st_inode = 2;
+		buf->st_ino = root.inode_num;
 		buf->st_atime = time(NULL);
 		buf->st_ctime = time(NULL);
 		buf->st_mtime = time(NULL);;
@@ -215,10 +220,10 @@ int getattr(const char *path, struct stat *buf) {
 		else {
 			inode temp = inode_table[temp_inodenum];
 			buf->st_mode = S_IFDIR |0755;
-			// buf->st_size = ;
+			buf->st_size = temp.size;
 			// buf->st_nlink = ;
 			// buf->st_blocks = ;
-			// buf->st_inode = temp.inodenum;
+			buf->st_ino = temp.inode_num;
 			buf->st_atime = time(NULL);
 			buf->st_ctime = time(NULL);
 			buf->st_mtime = time(NULL);
