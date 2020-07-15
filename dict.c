@@ -110,6 +110,6 @@ int dict_has(Dictionary *dictionary, const char *key);
 int dict_get(Dictionary *dictionary, const char *key);
 void dict_remove(Dictionary *dictionary, const char *key);
 void dict_free(Dictionary *dictionary);
-[출처] C 언어 Dictionary|작성자 amainlog
+
 
 
