@@ -19,6 +19,3 @@ void chanb(int num, int iorb){
     unsigned char new;
     int byte;
 }
-
-void main(){
-}
