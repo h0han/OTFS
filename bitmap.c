@@ -5,7 +5,7 @@
 #include <fcntl.h>
 
 int checkb(int iorb){
-	int fd = open("region.c", O_RDWR|O_CREAT, 0666);
+	int fd = open("region", O_RDWR|O_CREAT, 0666);
 	if (iorb == 0) { //for inode bitmap
         	lseek(fd, 1024, SEEK_SET);
         	unsigned char* buf = malloc(1024);
@@ -45,7 +45,7 @@ int checkb(int iorb){
 }
 
 void chanb(int num, int iorb) {
-	int fd = open("region.c", O_RDWR|O_CREAT, 0666);
+	int fd = open("region", O_RDWR|O_CREAT, 0666);
 	unsigned char* buf = malloc(1);
 	if (iorb == 0) {
 		lseek(fd, 1024 + (num/8) * 512, SEEK_SET);
