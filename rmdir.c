@@ -58,4 +58,5 @@ static int otrmdir(const char* path){
                         }
                 }
         }
+        close(fd);
 }
