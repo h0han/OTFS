@@ -34,11 +34,14 @@ static int otrmdir(const char* path){
         lseek(fd, inum, SEEK_CUR);
         read(fd, &ino, 512);
         //path is directory
+
         for(int i = 0; i<12;i){
-                if(ino.DB[i] == NULL){
-                        break;
-                }
+                if(ino.DB[i] != NULL){
                 return -1; // error: there are files in dirctory
+                }
+        }
+        for(int j = 0; j<12;j+++){
+                chanb(ino.data_num[i], 1);
         }
 
         lseek(fd, 512, SEEK_CUR);
