@@ -1,11 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include "bitmap.h"
 
-int checkb(int iorb){
-        int fd = open("region", O_RDWR|O_CREAT, 0666);
+int checkb(int fd, int iorb){
         if (iorb == 0) { //for inode bitmap
                 lseek(fd, 1024, SEEK_SET);
                 unsigned char* buf = malloc(1024);
@@ -19,14 +14,16 @@ int checkb(int iorb){
                                     count++;
                                 }
                                 free(buf);
-                                close(fd);
+                                if((byte*8+count)<0){
+                                        printf("bitmap Error");
+                                }
+
                                 return  byte * 8 + count;
                         }
                 }
 
         }
-	
-	else if (iorb == 1){ //for data bitmap
+        else if (iorb == 1){ //for data bitmap
                 lseek(fd,2048, SEEK_SET);
                 unsigned char* buf = malloc(1024*128);
                 read(fd, buf, 1024*128);
@@ -39,19 +36,19 @@ int checkb(int iorb){
                                     count++;
                                 }
                                 free(buf);
-                                close(fd);
+                                if((byte*8+count)<0){
+                                        printf("bitmap Error");
+                                }
                                 return  byte * 8 + count;
                         }
-		}	
-	}
-	else{
-		printf("Parameter should be 0 or 1!");
-	}
+                }
+        }
+        else{
+                printf("Parameter should be 0 or 1!");
+        }
 
 }
-
-void chanb(int num, int iorb) {
-        int fd = open("region", O_RDWR|O_CREAT, 0666);
+void chanb(int fd, int num, int iorb) {
         unsigned char* buf = malloc(1);
         if (iorb == 0) {
                 lseek(fd, 1024 + (num/8), SEEK_SET);
@@ -67,8 +64,18 @@ void chanb(int num, int iorb) {
         buf[0] = new;
         write(fd, buf, 1);
         free(buf);
-        close(fd);
 }
 
-
-
+int onoffcheck(int fd, int num, int iorb) {
+        unsigned char* buf = malloc(1);
+        if (iorb == 0) {
+                lseek(fd, 1024 + (num/8), SEEK_SET);
+        }
+        else {
+                lseek(fd, 2048 + (num/8), SEEK_SET);
+	}
+	read(fd, buf, 1);
+	unsigned char new = buf[0];
+	free(buf);
+	return new;
+}
