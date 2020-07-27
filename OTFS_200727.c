@@ -73,7 +73,7 @@ int count(const char *c, char x) {
 	return count;
 }
 
-int otfind(const char* path) { // return -1 means error
+int otfind(const char* path) { // return -1 means "There is no file"
 	// get file	
 	int fd;
 	char region[10] = "region";
@@ -316,6 +316,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	// write in region file	
 	int inode_num; 
 	int dbit_num;
+	int input_num;
 	int root_check = 0;
 	char temp[100]; // used strtok
 	strcpy(temp, path); 
@@ -334,12 +335,13 @@ static int ot_mkdir(const char *path, mode_t mode) {
 		ptr = strtok(temp, "/");
 		if (root_check == 0) {
 			//access to root
+			inode_num = 0;
 			fileinode = inode_table[0];
 		}
 		else {
 			fileinode = inode_table[inode_num];
 		}
-		for (i = 0; i <= (fileinode.size / 4096); i++) { 
+		for (i = 0; i <= (fileinode.size / 4096); i++) { // Set Dir directroy
 			loop_escape = true;
 			dbit_num = fileinode.data_num[i];
 			pread(fd, (char*) Dir, 4096, dtable_location + dbit_num); // dbit_num is offset
@@ -348,15 +350,17 @@ static int ot_mkdir(const char *path, mode_t mode) {
 				strcpy(new_dir->name_list[1], "..");
 				new_dir->inode_num[1] = inode_num;
 				// we need to change parent inode's data
-				int input_num;
-				for (k = 1; k < 128; k++) { // k = 0 is root_num
+				for (k = 0; k < 128; k++) { // finding last empty number in inode_num array of Dir
+					if (root_check == 0 && k == 0 && i == 0) {
+						continue;
+					}
 					if (Dir->inode_num[k] == 0) {
 					        input_num = k;
 						break;
 					}
 				} // if k > 128, we need to add new Data block?
-			        strcpy(Dir->name_list[k], ptr);	
-				Dir->inode_num[k] = new.inode_num;
+			        strcpy(Dir->name_list[input_num], ptr);	
+				Dir->inode_num[input_num] = new.inode_num;
 				lseek(fd, 0, SEEK_SET);
 				pwrite(fd, (char*) Dir, 4096, dtable_location + dbit_num); 
 
@@ -369,7 +373,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 				loop_escape = false;
 				break;
 			}
-			for (j = 0; j < 128; j++) {
+			for (j = 0; j < 128; j++) {  // find ptr directory in Dir
 				if ((strcmp((Dir->name_list[j]), ptr)) == 0) {
 					inode_num = Dir->inode_num[j];
 					// fileinode.ctime = time(NULL);
@@ -523,9 +527,9 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 		return 0;
 	}
 	int size = 1024;	
-	if(strcmp(path,"/") != 0 ) {
-		return -1;
-	}
+	//if(strcmp(path,"/") != 0 ) {
+	//	return -1;
+	//}
 	filler(buf, ".", NULL, 0);
 	filler(buf, "..", NULL, 0);
 
@@ -543,49 +547,43 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t
 	long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;	
 	lseek(fd, itable_location, SEEK_SET);
 	read(fd, inode_table, super_block->itable_size);
+	long dtable_location = itable_location + super_block->itable_size;
 
-	// we put a new inode in the empty place of inode table, so there are no double empty place
-	int temp_inodenum;
-	int save[8192];
-	inode file;
-	int pos_save = 0; // position of the save array
-	//struct stat *buf;
-	for (int i = 0; i < 8192; i++) {
-		if ((temp_inodenum = checkb(fd, 0)) == i) {
-			chanb(fd, temp_inodenum, 0);
-			if (checkb(fd, 0) == (i+1)) { // from i, there are no inode in the inode table.
-				chanb(fd, temp_inodenum, 0);
-				break;
-			}
-			else {
-				save[pos_save] = temp_inodenum;
-				pos_save++;
-				continue;
+	inode dir = inode_table[dir_inodenum];
+	inode temp;
+	int dbit_num;
+	int k;
+	Dir_Block* Dir = (Dir_Block*) malloc (4096);
+	for (int i = 0; i <= (dir.size / 4096); i++) {
+		dbit_num = dir.data_num[i];
+		pread(fd, (char*) Dir, 4096, dtable_location + dbit_num); // dbit_num is offset
+		if (i == 0) {
+			for (k = 2; k < 128; k++) {  // k = 0 -> ".", k = 1 -> ".."
+			        if (Dir->inode_num[k] == 0) { // we need to think about root_num
+					break;
+				}
+				temp = inode_table[Dir->inode_num[k]];
+				filler(buf, temp.filename, NULL, 0);
 			}
 		}
-		file = inode_table[i];
-		if (file.file_or_dir == 1) { // if file is dir 
-			//buf->st_ino = file.inode_num;
-			//buf->st_mode = S_IFDIR |0755;
-			//buf->st_nlink = 1;
-			//buf->st_uid;
-			//buf->st_gid;
-			//buf->st_size = file.size;
-			// buf->st_blocks = ;
-			//buf->st_atime = time(NULL);
-			//buf->st_ctime = time(NULL);
-			//buf->st_mtime = time(NULL);
-			//filler(buf, file.filename, buf, 0);
-			filler(buf, file.filename, NULL, 0);
+		else {
+			for (k = 0; k < 128; k++) { 
+			        if (Dir->inode_num[k] == 0) { // we need to think about root_num
+					break;
+				}
+				temp = inode_table[Dir->inode_num[k]];
+				filler(buf, temp.filename, NULL, 0);
+			}
 		}
+		lseek(fd, 0, SEEK_SET);
+		
 	}
-	for (int j = 0; j < pos_save; j++) {
-		chanb(fd, save[j], 0);
-	}	    
+
 	close(fd);
 	free(super_block);
 	//free(inode_bitmap);
-	free(inode_table);		
+	free(inode_table);
+	free(Dir);	
 }
 
 static struct fuse_operations ot_oper = {
