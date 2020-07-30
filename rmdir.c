@@ -23,25 +23,25 @@ char* paren(const char* path){
         return new;
 }
 
-
-static int otrmdir(const char* path){
+static int ot_rmdir(const char* path){
 
         int inum = otfind(path);
         inode ino;
-        chanb(inum,0);
-        int fd = open("region.c", O_RDWR|O_CREAT, 0666);
+
+        int fd = open("region", O_RDWR|O_CREAT, 0666);
+        chanb(fd, inum, 0);
         lseek(fd, 2048+1024*128, SEEK_SET);
         lseek(fd, inum, SEEK_CUR);
         read(fd, &ino, 512);
         //path is directory
 
-        for(int i = 0; i<12;i){
+        for(int i = 0; i<12;i++){
                 if(ino.DB[i] != NULL){
                 return -1; // error: there are files in dirctory
                 }
         }
-        for(int j = 0; j<12;j+++){
-                chanb(ino.data_num[i], 1);
+        for(int j = 0; j<12;j++){
+                chanb(fd, ino.data_num[j], 1);
         }
 
         lseek(fd, 512, SEEK_CUR);
@@ -57,9 +57,10 @@ static int otrmdir(const char* path){
                 for (int j = 0; j < 128; j++) {
                         if (((pino->DB[i])->inode_num[j])== inum) {
                                 strcpy((pino->DB[i])->name_list[j],"");
-                                (pino->DB[i])->inode_num[j] = NULL;
+                                (pino->DB[i])->inode_num[j] = 0;
                         }
                 }
         }
         close(fd);
 }
+
