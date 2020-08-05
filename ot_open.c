@@ -18,30 +18,25 @@ static int ot_open(const char *path, struct fuse_file_info *fi)
 
 	super_block = malloc(1024);
 	inode_table = malloc(8 * 1024 * 512);
-	inode_bitmap = malloc(sizeof(ibitmap));
-	data_bitmap = malloc(8 * 1024 * sizeof(dbitmap));
 
 	lseek(fd, 0, SEEK_SET);
 	read(fd, super_block, 1024); // superblock load
-
-	lseek(fd, 1024, SEEK_SET);
-	read(fd, inode_bitmap, 1024); // ibitmap load
-
-	lseek(fd, 2048, SEEK_SET);
-	read(fd, data_bitmap, 128 * 1024); //dbitmap load
 
 	long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;
 
 	lseek(fd, itable_location, SEEK_SET);
 	read(fd, inode_table, 8 * 1024 * 512); // itable load
 
+	inode temp;
 	inode temp = inode_table[inode_num];
 
 	Inode.atime = time(NULL); // reinitializing atime
-
 
 	close(fd);
 	free(super_block);
 	free(inode_bitmap);
 	free(data_bitmap);
 	free(inode_table);
+
+	return Inode.FB[data_num[inode temp]]
+}
