@@ -1,42 +1,44 @@
 static int ot_open(const char *path, struct fuse_file_info *fi)
 {
-	int inode_num;
-	if ((inode_num = otfind(path)) == -1) {	//it means there is no file on the path
-		return -1;
-	}
-	int fd;
-	char region[10] = "region";
-	if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0) {
-		printf("Error\n");
-		return 0;
-	}
+/*
+        if (strcmp(path+1, options.filename) != 0)
+                return -ENOENT;
 
-	superblock* super_block;
-	inode* inode_table;
+        if ((fi->flags & O_ACCMODE) != O_RDONLY)
+                return -EACCES;
+*/
+        int inode_num;
+        if ((inode_num = otfind(path)) == -1) { //it means there is no file on the path
+                return -1; 
+        }
+        int fd; 
+        char region[10] = "region";
+        if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0) {
+                printf("Error\n");
+                return 0;
+        }
 
-	super_block = malloc(1024);
-	inode_table = malloc(8 * 1024 * 512);
+        superblock* super_block;
+        inode* inode_table;
 
-	lseek(fd, 0, SEEK_SET);
-	read(fd, super_block, 1024); // superblock load
+        super_block = malloc(1024);
+        inode_table = malloc(8 * 1024 * 512);
 
-	long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;
+        lseek(fd, 0, SEEK_SET);
+        read(fd, super_block, 1024); // superblock load
 
-	lseek(fd, itable_location, SEEK_SET);
-	read(fd, inode_table, 8 * 1024 * 512); // itable load
+        long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;
 
-	inode temp = inode_table[inode_num];
+        lseek(fd, itable_location, SEEK_SET);
+        read(fd, inode_table, 8 * 1024 * 512); // itable load
 
-	temp.atime = time(NULL); // reinitializing atime
-
-	for (int i = 0; i <= (temp.size/4096); i++) {
-		temp.data_num[i];
-	} //have to modify this point
-		
-
-	close(fd);
-	free(super_block);
-	free(inode_bitmap);
-	free(data_bitmap);
-	free(inode_table);
+        inode temp = inode_table[inode_num];
+        temp.atime = time(NULL); // reinitializing atime
+ 
+// we need to write new inode
+        fi->fh = inode_num;
+        close(fd);
+        free(super_block);
+        free(inode_table);
+        return 0;
 }
