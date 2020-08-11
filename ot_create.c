@@ -1,20 +1,20 @@
 static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
-	int inode_num;
+	int inode_num = fi->fh;
 	if ((inode_num = otfind(path)) != -1) { // There is same file in the path
 		return -EEXIST;
 	}
 
-	int fd;
-	char region[10] = "region";
-	if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0) {
-		printf("Error\n");
-		return 0;
-	}
+	//int fd;
+	//char region[10] = "region";
+	//if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0) {
+	//	printf("Error\n");
+	//	return 0;
+	//}
 
 	superblock* super_block;
-	ibitmap* inode_bitmap;
-	dbitmap* data_bitmap;
+	unsigned char* inode_bitmap;
+	unsigned char* data_bitmap;
 	inode* inode_table;
 
 	super_block = malloc(1024);
@@ -22,11 +22,11 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	data_bitmap = malloc(1024 * 128);
 	inode_table = malloc(8 * 1024 * 512);
 
-	lseek(fd, 0, SEEK_SET);
-	read(fd, super_block, 1024);
-	read(fd, inode_bitmap, super_block->ibitmap_size);
-	read(fd, data_bitmap, super_block->dbitmap_size);
-	read(fd, inode_table, super_block->itable_size);
+	lseek(_g_fd, 0, SEEK_SET);
+	read(_g_fd, super_block, 1024);
+	read(_g_fd, inode_bitmap, 1024);
+	read(_g_fd, data_bitmap, 128 * 1024);
+	read(_g_fd, inode_table, 8 * 1024 * 512);
 	long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;
 	long dtable_location = itable_location + super_block->itable_size;
 
@@ -34,8 +34,8 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	inode new;
 
 	// allocation inode bitmap
-	int new_ibitnum = checkb(fd, 0);
-	chanb(fd, new_ibitnum, 0);
+	int new_ibitnum = checkb(_g_fd, 0);
+	chanb(_g_fd, new_ibitnum, 0);
 	
 	// allocation data bitmap
 	int new_dbitnum = checkb(fd, 1);
@@ -97,7 +97,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 		ptr = strtok(NULL, "/");
 	}
 
-	close(fd);
+	//close(fd);
 	free(super_block);
 	free(inode_bitmap);
 	free(data_bitmap);
