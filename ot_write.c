@@ -5,7 +5,7 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
         int inode_num = fi->fh;
         //if (inode_num = (otfind(path)) == -1) {
         //        return -1; // There is no file on the path
-        }
+        // }
 
         superblock* super_block;
         inode* inode_table;
