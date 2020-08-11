@@ -48,19 +48,20 @@ static int ot_rmdir(const char* path){
         write(fd, &ino, 512);
 
         //touch parents's data
-        inode* pino;
+        inode pino;
         int pinum = otfind(paren(path));
         lseek(fd, 2048+1028*128, SEEK_SET);
         lseek(fd, pinum, SEEK_CUR);
-        read(fd, pino, 512);
-        for (int i = 0; i <= (pino->size / 4096); i++) {
+        read(fd, &pino, 512);
+        for (int i = 0; i <= (pino.size / 4096); i++) {
                 for (int j = 0; j < 128; j++) {
-                        if (((pino->DB[i])->inode_num[j])== inum) {
-                                strcpy((pino->DB[i])->name_list[j],"");
-                                (pino->DB[i])->inode_num[j] = 0;
+                        if (((pino.DB[i])->inode_num[j])== inum) {
+                                strcpy((pino.DB[i])->name_list[j],"");
+                                (pino.DB[i])->inode_num[j] = 0;
                         }
                 }
         }
         close(fd);
+        return 0;
 }
 
