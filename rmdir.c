@@ -37,7 +37,7 @@ static int ot_rmdir(const char* path){
 
         for(int i = 0; i<12;i++){
                 if(ino.DB[i] != NULL){
-                return -1; // error: there are files in dirctory
+                return -ENOTEMPTY; // error: there are files in dirctory
                 }
         }
         for(int j = 0; j<12;j++){
