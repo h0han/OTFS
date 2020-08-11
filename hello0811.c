@@ -61,6 +61,7 @@ static const struct fuse_opt option_spec[] = {
 };
 
 
+int _g_fd;
 
 
 typedef struct File_Block{
@@ -121,12 +122,6 @@ int otfind(const char* path) { // return -1 means "There is no file"
 		return 0;
 	}
 	
-	int fd;
-	char region[10] = "region";
-	if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0){
-		printf("Error\n");
-		return -2;
-	}
 	//int size = 1024;
 
 	superblock* super_block;
@@ -134,12 +129,12 @@ int otfind(const char* path) { // return -1 means "There is no file"
 	super_block = malloc(1024); //1024
 	inode_table = malloc(8 * 1024 * 512); // 512
 
-	lseek(fd, 0, SEEK_SET);
-	read(fd, super_block, 1024); // superblock load
+	lseek(_g_fd, 0, SEEK_SET);
+	read(_g_fd, super_block, 1024); // superblock load
 
 	long itable_location = 1024 + 1024 + 128 * 1024; //super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;	
-	lseek(fd, itable_location, SEEK_SET);
-	read(fd, inode_table, 8 * 1024 * 512); // itable load
+	lseek(_g_fd, itable_location, SEEK_SET);
+	read(_g_fd, inode_table, 8 * 1024 * 512); // itable load
 	
 	long dtable_location = itable_location + 8 * 1024 * 512;
 
@@ -179,7 +174,7 @@ int otfind(const char* path) { // return -1 means "There is no file"
 			loop_escape = true;
 			dbit_num = fileinode.data_num[i];
 			printf("dbit_num : %d (0)\n", dbit_num);
-			pread(fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); // root_dbitnum is offset
+			pread(_g_fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); // root_dbitnum is offset
 			printf("Dir->name_list[0] : %s(.)\n", Dir->name_list[0]);
 			printf("Dir->name_list[1] : %s(a)\n", Dir->name_list[1]);
 			for (j = 0; j < 128; j++) {
@@ -200,7 +195,6 @@ int otfind(const char* path) { // return -1 means "There is no file"
 	if (exist_check != root_check) { // If there is not file
 		return -1;
 	}
-	close(fd);
 	free(super_block);
 	free(inode_table);
 	return inode_num;
@@ -233,22 +227,14 @@ char* paren(const char* path){
 }
 
 
-
-
-
-
-
-
-
 static void *ot_init(struct fuse_conn_info *conn,
 			struct fuse_config *cfg)
 {
 	int size = 1024; 
 	
 	// make a new file to store Filesystem data
-	int fd;
 	char region[10] = "region";
-	if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0){
+	if ((_g_fd = open(region, O_RDWR|O_CREAT, 0666)) < 0){
 		printf("Error\n");
 		return 0;
 	}
@@ -270,23 +256,23 @@ static void *ot_init(struct fuse_conn_info *conn,
 	data_bitmap = malloc(128 * 1024);
 	inode_table = malloc(8 * 1024 * 512);
 
-	lseek(fd, 0, SEEK_SET);
-	write(fd, super_block, 1024);
-	write(fd, inode_bitmap, 1024);
-	write(fd, data_bitmap, 128 * 1024);
+	lseek(_g_fd, 0, SEEK_SET);
+	write(_g_fd, super_block, 1024);
+	write(_g_fd, inode_bitmap, 1024);
+	write(_g_fd, data_bitmap, 128 * 1024);
 	// add root directory
 	inode root;
     
 	// need inode bitmap alloc
-	int root_ibitnum = checkb(fd, 0); // maybe root_ibitnum = 0
-	chanb(fd, root_ibitnum, 0);
+	int root_ibitnum = checkb(_g_fd, 0); // maybe root_ibitnum = 0
+	chanb(_g_fd, root_ibitnum, 0);
 	printf("root_ibitnum : %d\n", root_ibitnum);
-	printf("newcheckb : %d\n", checkb(fd, 0));
+	printf("newcheckb : %d\n", checkb(_g_fd, 0));
 	// need data bitmap alloc
-	int root_dbitnum = checkb(fd, 1);
-	chanb(fd, root_dbitnum, 1);
+	int root_dbitnum = checkb(_g_fd, 1);
+	chanb(_g_fd, root_dbitnum, 1);
 	printf("root_dbitnum : %d\n", root_dbitnum);
-	printf("newcheckb : %d\n", checkb(fd, 1));
+	printf("newcheckb : %d\n", checkb(_g_fd, 1));
 
 	// set root inode
 	root.filename = malloc(28);	
@@ -305,13 +291,13 @@ static void *ot_init(struct fuse_conn_info *conn,
 	// write in region file	
 
 	long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;	
-	lseek(fd, itable_location, SEEK_SET);
-	write(fd, inode_table, 8 * 1024 * 512);
+	lseek(_g_fd, itable_location, SEEK_SET);
+	write(_g_fd, inode_table, 8 * 1024 * 512);
 	long dtable_location = itable_location + super_block->itable_size;
-	pwrite(fd, (char*) root_dir, 4096, dtable_location + root_dbitnum * 4096); // root_dbitnum is offset
+	pwrite(_g_fd, (char*) root_dir, 4096, dtable_location + root_dbitnum * 4096); // root_dbitnum is offset
+    
 
 	// close and free
-	close(fd);
 	free(super_block);
 	free(inode_bitmap);
 	free(data_bitmap);
@@ -340,12 +326,6 @@ static int ot_mkdir(const char *path, mode_t mode) {
 		return -EEXIST; // Actually, return value is -EEXIST
 	}
 	//inode bitmap, data bitmap add
-	int fd;
-	char region[10] = "region";
-	if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0){
-		printf("Error\n");
-		return 0;
-	}
 
 	superblock* super_block;
 	unsigned char* inode_bitmap;
@@ -357,12 +337,12 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	data_bitmap = malloc(1024 * 128);	
 	inode_table = malloc(8 * 1024 * 512);
 	
-	lseek(fd, 0, SEEK_SET);
-	read(fd, super_block, 1024); // superblock load
+	lseek(_g_fd, 0, SEEK_SET);
+	read(_g_fd, super_block, 1024); // superblock load
 	//printf("super_block size : %d\nibitmap : %d\ndbit : %d\nitable : %d\n", sizeof(superblock), super_block->ibitmap_size, super_block->dbitmap_size, super_block->itable_size);
-	read(fd, inode_bitmap, 1024);
-	read(fd, data_bitmap, 128 * 1024);
-	read(fd, inode_table, 8 * 1024 * 512);
+	read(_g_fd, inode_bitmap, 1024);
+	read(_g_fd, data_bitmap, 128 * 1024);
+	read(_g_fd, inode_table, 8 * 1024 * 512);
 	long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;	
 	long dtable_location = itable_location + super_block->itable_size;
 	
@@ -378,14 +358,14 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	inode new;
     
 	// need inode bitmap alloc
-	int new_ibitnum = checkb(fd, 0); // maybe root_ibitnum = 0
-	chanb(fd, new_ibitnum, 0);
+	int new_ibitnum = checkb(_g_fd, 0); // maybe root_ibitnum = 0
+	chanb(_g_fd, new_ibitnum, 0);
 	printf("new_ibitnum : %d(it will be 1)\n", new_ibitnum);
-	printf("onoffcheck : %d\n", onoffcheck(fd, new_ibitnum,0)); 
+	printf("onoffcheck : %d\n", onoffcheck(_g_fd, new_ibitnum,0)); 
 
 	// need data bitmap alloc
-	int new_dbitnum = checkb(fd, 1);
-	chanb(fd, new_dbitnum, 1);
+	int new_dbitnum = checkb(_g_fd, 1);
+	chanb(_g_fd, new_dbitnum, 1);
 
 	// set new inode
 	new.filename = malloc(28);	
@@ -443,7 +423,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 			loop_escape = true;
 			dbit_num = fileinode.data_num[i];
 			printf("dbit_num : %d(0)\n", dbit_num);
-			pread(fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); // dbit_num is offset
+			pread(_g_fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); // dbit_num is offset
 			printf("Dir.name_list[0]:%s(.)\n", Dir->name_list[0]);
 			printf("Dir->inode_num[3] : %d(0)\n", Dir->inode_num[3]);
 			if (h == num_file - 1) {
@@ -463,9 +443,9 @@ static int ot_mkdir(const char *path, mode_t mode) {
 				} // if k > 128, we need to add new Data block?
 			        strcpy(Dir->name_list[input_num], ptr);	
 				Dir->inode_num[input_num] = new.inode_num;
-				pwrite(fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); //write parent Dir
+				pwrite(_g_fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); //write parent Dir
 				// we need to add new inode in data_table
-				pwrite(fd, (char*) new_dir, 4096, dtable_location + new_dbitnum * 4096);
+				pwrite(_g_fd, (char*) new_dir, 4096, dtable_location + new_dbitnum * 4096);
 			    	fileinode.ctime = time(NULL);
 				fileinode.mtime = time(NULL);				
 				fileinode.atime = time(NULL); 
@@ -491,17 +471,16 @@ static int ot_mkdir(const char *path, mode_t mode) {
 		ptr = strtok(NULL, "/");
 	}
 	inode_table[new_ibitnum] = new;
-       	lseek(fd, 0, SEEK_SET);
-        write(fd, super_block, 1024);
-	lseek(fd, itable_location, SEEK_SET);
-        write(fd, inode_table, 8 * 1024 * 512);
+       	lseek(_g_fd, 0, SEEK_SET);
+        write(_g_fd, super_block, 1024);
+	lseek(_g_fd, itable_location, SEEK_SET);
+        write(_g_fd, inode_table, 8 * 1024 * 512);
 
 	printf("otfind(path) : %d(1)\n", otfind(path)); 
 	Dir_Block* test = (Dir_Block*) malloc (4096);
-	pread(fd, (char*) test, 4096, dtable_location + dbit_num * 4096); // root_dbitnum is offset
+	pread(_g_fd, (char*) test, 4096, dtable_location + dbit_num * 4096); // root_dbitnum is offset
 	printf("test->name_list[0] : %s(.)\n", test->name_list[0]);
 	
-	close(fd);
 	free(super_block);
 	free(inode_bitmap);
 	free(data_bitmap);
@@ -516,11 +495,10 @@ static int ot_rmdir(const char* path){
         int inum = otfind(path);
         inode ino;
 
-        int fd = open("region", O_RDWR|O_CREAT, 0666);
-        chanb(fd, inum, 0);
-        lseek(fd, 2048+1024*128, SEEK_SET);
-        lseek(fd, inum, SEEK_CUR);
-        read(fd, &ino, 512);
+        chanb(_g_fd, inum, 0);
+        lseek(_g_fd, 2048+1024*128, SEEK_SET);
+        lseek(_g_fd, inum, SEEK_CUR);
+        read(_g_fd, &ino, 512);
         //path is directory
 
         for(int i = 0; i<12;i++){
@@ -529,18 +507,18 @@ static int ot_rmdir(const char* path){
                 }
         }
         for(int j = 0; j<12;j++){
-                chanb(fd, ino.data_num[j], 1);
+                chanb(_g_fd, ino.data_num[j], 1);
         }
 
-        lseek(fd, 512, SEEK_CUR);
-        write(fd, &ino, 512);
+        lseek(_g_fd, 512, SEEK_CUR);
+        write(_g_fd, &ino, 512);
 
         //touch parents's data
         inode pino;
         int pinum = otfind(paren(path));
-        lseek(fd, 2048+1028*128, SEEK_SET);
-        lseek(fd, pinum, SEEK_CUR);
-        read(fd, &pino, 512);
+        lseek(_g_fd, 2048+1028*128, SEEK_SET);
+        lseek(_g_fd, pinum, SEEK_CUR);
+        read(_g_fd, &pino, 512);
         for (int i = 0; i <= (pino.size / 4096); i++) {
                 for (int j = 0; j < 128; j++) {
                         if (((pino.DB[i])->inode_num[j])== inum) {
@@ -549,19 +527,12 @@ static int ot_rmdir(const char* path){
                         }
                 }
         }
-        close(fd);
         return 0;
 }
 static int ot_getattr(const char *path, struct stat *buf,
 			 struct fuse_file_info *fi)
 {
 	int nofile_check = 0;
-	int fd;
-	char region[10] = "region";
-	if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0){
-		printf("Error\n");
-		return 0;
-	}
 
 	superblock* super_block;
 	super_block = malloc(1024);
@@ -569,12 +540,12 @@ static int ot_getattr(const char *path, struct stat *buf,
 	inode* inode_table;
 	inode_table = malloc(8 * 1024 * 512);
 	
-	lseek(fd, 0, SEEK_SET);
-	read(fd, super_block, 1024); // superblock load
+	lseek(_g_fd, 0, SEEK_SET);
+	read(_g_fd, super_block, 1024); // superblock load
 
 	long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;	
-	lseek(fd, itable_location, SEEK_SET);
-	read(fd, inode_table, 8 * 1024 * 512); // itable load
+	lseek(_g_fd, itable_location, SEEK_SET);
+	read(_g_fd, inode_table, 8 * 1024 * 512); // itable load
 
 	if (strcmp(path, "/") == 0) {
 		inode root = inode_table[0];
@@ -586,8 +557,8 @@ static int ot_getattr(const char *path, struct stat *buf,
 		//buf->st_gid;
 		buf->st_size = root.size;
 		//buf->st_blocks = ;
-		buf->st_atime = time(NULL);
-		buf->st_ctime = time(NULL);
+		buf->st_atime = root.atime;
+		buf->st_ctime = root.ctime;
 		buf->st_mtime = root.mtime;
 	}
 	else { 
@@ -611,12 +582,11 @@ static int ot_getattr(const char *path, struct stat *buf,
 			//buf->st_gid;
 			buf->st_size = temp.size;
 			// buf->st_blocks = ;
-			buf->st_atime = time(NULL);
-			buf->st_ctime = time(NULL);
+			buf->st_atime = temp.atime;
+			buf->st_ctime = temp.ctime;
 			buf->st_mtime = temp.mtime;
 		}
 	}
-	close(fd);
 	free(super_block);
 	free(inode_table);		
 	printf("@@@@@@@getattr complete @@@@@@@\n");
@@ -643,12 +613,6 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	if ((dir_inodenum = otfind(path)) == -1) { // there is same file in path
 		return -1; // Actually, there is no file with name path
 	}
-	int fd;
-	char region[10] = "region";
-	if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0){
-		printf("Error\n");
-		return 0;
-	}
 	//if(strcmp(path,"/") != 0 ) {
 	//	return -1;
 	//}
@@ -662,12 +626,12 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 //	inode_bitmap = malloc(sizeof(ibitmap));
 	inode_table = malloc(8 * 1024 * 512);
 	
-	lseek(fd, 0, SEEK_SET);
-	read(fd, super_block, 1024); // superblock load
+	lseek(_g_fd, 0, SEEK_SET);
+	read(_g_fd, super_block, 1024); // superblock load
 //	read(fd, inode_bitmap, 1024); // ibitmap load
 	long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;	
-	lseek(fd, itable_location, SEEK_SET);
-	read(fd, inode_table, 8 * 1024 * 512);
+	lseek(_g_fd, itable_location, SEEK_SET);
+	read(_g_fd, inode_table, 8 * 1024 * 512);
 	long dtable_location = itable_location + super_block->itable_size;
 
 	inode dir_inode = inode_table[dir_inodenum];
@@ -684,7 +648,7 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	}
 	for (int i = 0; i < data_loop_num; i++) {
 		dbit_num = dir_inode.data_num[i];
-		pread(fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); // dbit_num is offset
+		pread(_g_fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); // dbit_num is offset
 		if (i == 0) {
 			for (k = 0; k < 128; k++) {  // k = 0 -> ".", k = 1 -> ".."
 			        if (Dir->inode_num[k] == 0) { // we need to think about root_num
@@ -696,7 +660,6 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 			}
 		}
 	}
-	close(fd);
 	free(super_block);
 	//free(inode_bitmap);
 	free(inode_table);
@@ -719,12 +682,6 @@ static int ot_open(const char *path, struct fuse_file_info *fi)
         if ((inode_num = otfind(path)) == -1) { //it means there is no file on the path
                 return -1; 
         }
-        int fd; 
-        char region[10] = "region";
-        if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0) {
-                printf("Error\n");
-                return 0;
-        }
 
         superblock* super_block;
         inode* inode_table;
@@ -732,25 +689,25 @@ static int ot_open(const char *path, struct fuse_file_info *fi)
         super_block = malloc(1024);
         inode_table = malloc(8 * 1024 * 512);
 
-        lseek(fd, 0, SEEK_SET);
-        read(fd, super_block, 1024); // superblock load
+        lseek(_g_fd, 0, SEEK_SET);
+        read(_g_fd, super_block, 1024); // superblock load
 
         long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;
 
-        lseek(fd, itable_location, SEEK_SET);
-        read(fd, inode_table, 8 * 1024 * 512); // itable load
+        lseek(_g_fd, itable_location, SEEK_SET);
+        read(_g_fd, inode_table, 8 * 1024 * 512); // itable load
 
         inode temp = inode_table[inode_num];
         temp.atime = time(NULL); // reinitializing atime
  
 // we need to write new inode
-	lseek(fd, itable_location, SEEK_SET);
-	write(fd, inode_table, 8 * 1024 * 512);
+	lseek(_g_fd, itable_location, SEEK_SET);
+	write(_g_fd, inode_table, 8 * 1024 * 512);
 
 	fi->fh = inode_num;
-        close(fd);
         free(super_block);
         free(inode_table);
+	printf("@@@@@@@ot_open complete @@@@@@@\n");
 	return 0;
 }
 
@@ -773,6 +730,102 @@ static int hello_read(const char *path, char *buf, size_t size, off_t offset,
 	return size;
 }
 
+static int ot_utimens(const char *path, const struct timespec ts[2]) {
+        int inode_num;
+        if ((inode_num = otfind(path)) == -1) { //it means there is no file on the path
+                return -1; 
+        }
+
+        superblock* super_block;
+        inode* inode_table;
+
+        super_block = malloc(1024);
+        inode_table = malloc(8 * 1024 * 512);
+
+        lseek(_g_fd, 0, SEEK_SET);
+        read(_g_fd, super_block, 1024); // superblock load
+
+        long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;
+
+        lseek(_g_fd, itable_location, SEEK_SET);
+        read(_g_fd, inode_table, 8 * 1024 * 512); // itable load
+
+        inode temp = inode_table[inode_num];
+	//temp.atime = (time_t) ts[0];
+	//temp.mtime = (time_t) ts[1];
+
+// we need to write new inode
+        lseek(_g_fd, itable_location, SEEK_SET);
+        write(_g_fd, inode_table, 8 * 1024 * 512);
+        
+        free(super_block);
+        free(inode_table);
+	printf("@@@@@@@ot_utimens complete @@@@@@@\n");
+        return 0;
+}
+
+static int ot_release (const char *path, struct fuse_file_info *fi) {
+	// we do not use any structure in open function, so we don't need something special in this function
+	printf("@@@@@@@ot_release complete @@@@@@@\n");
+        return 0;
+}
+
+static int ot_rename (const char *from, const char *to) {
+	// we need to change inode.filename and parent's name_list
+        int from_ino;
+        if ((from_ino = otfind(from)) == -1) { //it means there is no file on the path
+                printf("There is no filename with from, -ENOENT error!\n");
+		return -ENOENT; 
+        }
+        int to_ino;
+        if ((to_ino = otfind(to)) != -1) { //it means there is file on the path
+                printf("There is filename with to, -EEXIST error!\n");
+                return -EEXIST; 
+        }
+
+        int fd; 
+        char region[10] = "region";
+        if ((fd = open(region, O_RDWR|O_CREAT, 0666)) < 0) {
+                printf("Error\n");
+                return 0;
+        }
+
+        superblock* super_block;
+        inode* inode_table;
+
+        super_block = malloc(1024);
+        inode_table = malloc(8 * 1024 * 512);
+
+        lseek(_g_fd, 0, SEEK_SET);
+        read(_g_fd, super_block, 1024); // superblock load
+
+        long itable_location = super_block->sb_size + super_block->ibitmap_size + super_block->dbitmap_size;
+
+        lseek(_g_fd, itable_location, SEEK_SET);
+        read(_g_fd, inode_table, 8 * 1024 * 512); // itable load
+
+        inode to_inode = inode_table[to_ino];
+	if (to_inode.file_or_dir != 1) {
+		free(super_block);
+		free(inode_table);
+	    	printf("@@@@@@@-ENOTDIR error @@@@@@@\n");
+		return -ENOTDIR;
+	}
+// we need to write new inode
+        lseek(_g_fd, itable_location, SEEK_SET);
+        write(_g_fd, inode_table, 8 * 1024 * 512);
+
+        free(super_block);
+        free(inode_table);
+	printf("@@@@@@@ot_rename complete @@@@@@@\n");
+        return 0;	
+}
+
+void ot_destroy (void *private_data) {
+	close(_g_fd);
+	printf("@@@@@@@ot_destroy complete @@@@@@@\n");
+}
+
 static const struct fuse_operations ot_oper = {
 	.init           = ot_init,
 	.mkdir		= ot_mkdir,
@@ -780,7 +833,15 @@ static const struct fuse_operations ot_oper = {
 	.getattr	= ot_getattr,
 	.readdir	= ot_readdir,
 	.open		= ot_open,
+//      .create		= ot_create,
 	.read		= hello_read,
+//	.write		= ot_write,
+//      .unlink		= ot_unlink,
+	.utimens	= ot_utimens,
+	.release	= ot_release,
+	.rename		= ot_rename,	
+	.destroy	= ot_destroy,
+
 };
 
 static void show_help(const char *progname)
