@@ -2,26 +2,30 @@ char* paren(const char* path){
         char pfp[28];
         strcpy(pfp, path);
         char* ptr;
-        char* old[30];
+        char* old[28];
         ptr = strtok(pfp, "/");
         int i = 0;
         char* last;
         while(ptr!=NULL){
                 old[i] = ptr;
-                i++; 
+                i++;
                 last = ptr;
                 ptr= strtok(NULL, "/");
         }
         int j = 0;
-        char* new;
-        strcat(new, "/");
+        char* new = malloc(28);
         while((strcmp(old[j], last))){
-                strcat(new, old[j]);
                 strcat(new, "/");
+                strcat(new, old[j]);
                 j++;
+        }
+        if ((strcmp(new,"")==0)){
+                strcpy(new, "/");
         }
         return new;
 }
+
+
 
 static int ot_rmdir(const char* path){
         printf("###ot_rmdir start###\n");
