@@ -1,4 +1,3 @@
-123
 /*
   FUSE: Filesystem in Userspace
   Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
@@ -98,7 +97,7 @@ typedef struct Inode { // size : 128 * 4 = 512b
 	time_t atime; //access time
 	time_t ctime; //change time, time for changing about file metadata
 	time_t mtime; //modify time, time for changing about file data such as contents of file
-	mode_t mode;	
+	
 } inode;
 
 int count(const char *c, char x) {
@@ -379,7 +378,6 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	new.ctime = cur;
 	new.mtime = cur;
 	new.atime = cur;
-	new.mode = mode;
 
 	// set new directory Block	
 	Dir_Block* new_dir = malloc(4096);
@@ -576,15 +574,12 @@ static int ot_getattr(const char *path, struct stat *buf,
 		else {
 			inode temp = inode_table[temp_inodenum];
 			buf->st_ino = temp.inode_num;
-			
 			if (temp.file_or_dir == 1) { 
 				buf->st_mode = S_IFDIR | 0755;
 			}
 			else {
 				buf->st_mode = S_IFREG | 0444;
 			}
-			
-			//buf->st_mode = temp.mode;
 			buf->st_nlink = 1;
 			//buf->st_uid;
 			//buf->st_gid;
@@ -777,7 +772,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
 	// set new inode
 	new.filename = malloc(28);
-	new.size = 0;
+	new.size = 4096;
 	new.inode_num = new_ibitnum;
         for (int a = 0; a < 12; a++) { 
                 new.data_num[a] = 0;
@@ -787,8 +782,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	new.ctime = cur;
 	new.mtime = cur;
 	new.atime = cur;
-	new.mode = mode;
-		
+
 	// set new file Block
 	char* new_file = (char*) calloc(1, 4096);
 	// write in region file
@@ -929,7 +923,6 @@ static int ot_read(const char *path, char *buf, size_t size, off_t offset, struc
 	long dtable_location = itable_location + super_block->itable_size;
 
 	fileinode = inode_table[inode_num];
-	// we need to think about size related with hello_read
 	int dbitnum = fileinode.data_num[0];
 	printf("dbitnum : %d\n", dbitnum);
 	printf("offset : %d\n", offset);
@@ -938,7 +931,6 @@ static int ot_read(const char *path, char *buf, size_t size, off_t offset, struc
 		printf("READ ERROR\n");
 		return -1;
 	}
-	printf("data buf : %s\n", buf);
 	free(super_block);
 	free(inode_table);
 	printf("@@@@@@@ read complete @@@@@@@\n");
@@ -969,20 +961,11 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 
         fileinode = inode_table[inode_num];
 	int dbitnum = fileinode.data_num[0];
-	printf("dbitnum : %d\n", dbitnum);
-	printf("offset : %d\n", offset);
-	printf("data buf : %s\n", buf);
 	int sig = pwrite(_g_fd, buf, size, dtable_location + dbitnum * 4096 + offset);
 	if (sig  == -1) { // -1 means it does not write buf on the file
 		printf("WRITE ERROR\n");
 		return -1;
 	}
-	if ((fileinode.size - offset) < size) {  
-		inode_table[inode_num].size = offset + size;
-	}
-	printf("size : %d\n", inode_table[inode_num].size);	
-	lseek(_g_fd, itable_location, SEEK_SET);
-        write(_g_fd, inode_table, 8 * 1024 * 512);
 	free(super_block);
 	free(inode_table);
 	printf("@@@@@@@ write complete @@@@@@@\n");
@@ -1102,7 +1085,7 @@ static const struct fuse_operations ot_oper = {
 	.read		= ot_read,
     	.write		= ot_write,
 //      .unlink		= ot_unlink,
-//	.utimens	= ot_utimens,
+	.utimens	= ot_utimens,
 	.release	= ot_release,
 	.rename		= ot_rename,	
 	.destroy	= ot_destroy,
