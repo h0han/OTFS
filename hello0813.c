@@ -530,7 +530,7 @@ static int ot_rmdir(const char* path){
                 int pdnum = pino.data_num[i];
                 if(pdnum ==0){
                         printf("for %dst parent inode's date_num: %d\n", i, pdnum);
-                        break;
+                //        break;
                 }
                 pread(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
                 for(int k =0; k<128;k++){
