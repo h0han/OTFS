@@ -370,6 +370,9 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	new.filename = malloc(28);	
 	new.size = 4096; // at first, root's size = 4kb (1 Datablock)
 	new.inode_num = new_ibitnum;
+	for (int a = 0; a < 12; a++) { 
+		new.data_num[a] = 0;
+	}
 	new.data_num[0] = new_dbitnum;
 	new.file_or_dir = 1;
 	new.ctime = cur;
@@ -771,6 +774,9 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	new.filename = malloc(28);
 	new.size = 4096;
 	new.inode_num = new_ibitnum;
+        for (int a = 0; a < 12; a++) { 
+                new.data_num[a] = 0;
+        }
 	new.data_num[0] = new_dbitnum;
 	new.file_or_dir = 0;
 	new.ctime = cur;
