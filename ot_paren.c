@@ -4,7 +4,7 @@
 
 char* ot_paren(const char* path) {
 	char* par_path;
-	char* ptr = strtok('/', path);
+	char* ptr = strtok(path, '/');
 	int num_file = count(path, '/');
 	for (int i = 0; i < num_file; i++) {
 		strcat(par_path, '/');
