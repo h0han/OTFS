@@ -1,31 +1,20 @@
-char* paren(const char* path){
-        char pfp[28];
-        strcpy(pfp, path);
-        char* ptr;
-        char* old[28];
-        ptr = strtok(pfp, "/");
-        int i = 0;
-        char* last;
-        while(ptr!=NULL){
-                old[i] = ptr;
-                i++;
-                last = ptr;
-                ptr= strtok(NULL, "/");
+char* ot_paren(const char* path, char *par_path) {
+        int num_file = count(path, '/');
+        char* ptr = strtok(path, "/");
+        printf("%d\n", num_file);
+        for (int i = 0; i < (num_file -1); i++) {
+                strcat(par_path, "/");
+                strcat(par_path, ptr);
+                printf("%s\n", par_path);
+                printf("%s\n", ptr);
+                ptr = strtok(NULL, "/");
         }
-        int j = 0;
-        char* new = malloc(28);
-        while((strcmp(old[j], last))){
-                strcat(new, "/");
-                strcat(new, old[j]);
-                j++;
+        if(strcmp(par_path, "") ==0){
+                strcat(par_path, "/");
         }
-        if ((strcmp(new,"")==0)){
-                strcpy(new, "/");
-        }
-        return new;
+
+        return par_path;
 }
-
-
 
 static int ot_rmdir(const char* path){
         printf("###ot_rmdir start###\n");
@@ -34,12 +23,9 @@ static int ot_rmdir(const char* path){
         inode* inode_table = malloc(8*512*1024);
         inode dirinode;
 
-        //chanb(_g_fd, inum, 0);
         lseek(_g_fd, 2048+1024*128, SEEK_SET);
         read(_g_fd, inode_table, 1024*8*512);
         dirinode = inode_table[inum];
-
-        //path is directory
 
         for(int i = 0; i<12;i++){
                 printf("dirinode.data_num[%d]: %d\n", i, dirinode.data_num[i]);
@@ -50,27 +36,50 @@ static int ot_rmdir(const char* path){
                 }
         //}
         //for(int j = 0; j<12;j++){
+                if(dirinode.data_num[i]!=0){
                 chanb(_g_fd, dirinode.data_num[i], 1);
+               }
         }
+        chanb(_g_fd, inum, 0);
+
         inode_table[inum] = dirinode;
         lseek(_g_fd, 2048+1024*128, SEEK_SET);
         write(_g_fd, inode_table, 1024*8*512);
-        /*
-        //touch parents's data
+
+        printf("touch parents's data\n");
         inode pino;
-        int pinum = otfind(paren(path));
-        lseek(_g_fd, 2048+1028*128, SEEK_SET);
-        lseek(_g_fd, pinum, SEEK_CUR);
-        read(_g_fd, &pino, 512);
-        for (int i = 0; i <= (pino.size / 4096); i++) {
-                for (int j = 0; j < 128; j++) {
-                        if (((pino.DB[i])->inode_num[j])== inum) {
-                                strcpy((pino.DB[i])->name_list[j],"");
-                                (pino.DB[i])->inode_num[j] = 0;
+        printf("path: %s\n", path);
+        char par_path[28] = "";
+        printf("paren(path): %s\n", ot_paren(path, par_path));
+        int pinum = otfind(ot_paren(path, par_path));
+        printf("parent inode number: %d\n", pinum);
+        if (pinum == -1){
+                return -EEXIST;
+        }
+        //clear!!!
+        //
+        lseek(_g_fd, 2048+1024*128, SEEK_SET);
+        read(_g_fd, inode_table, 1024*8*512);
+        pino = inode_table[pinum];
+        Dir_Block* Dir = (Dir_Block*) malloc (4096);
+        for (int i = 0;i<12;i++){
+                int pdnum = pino.data_num[i];
+                if(pdnum ==0){
+                        printf("for %dst parent inode's date_num: %d\n", i, pdnum);
+                        break;
+                }
+                pread(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
+                for(int k =0; k<128;k++){
+                        printf("parent's Dir->inode_num[]: %d\n", Dir->inode_num[k]);
+                        if(Dir->inode_num[k] == inum){
+                                Dir->inode_num[k] = 0;
+                                strcpy(Dir->name_list[k],"");
                         }
                 }
+                pwrite(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
         }
+        free(Dir);
         printf("###ot_rmdir end###\n");
         return 0;
-        */
+
 }
