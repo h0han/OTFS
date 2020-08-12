@@ -2,8 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-char* ot_paren(const char* path) {
-	char par_path[100] = "";
+char* ot_paren(const char* path, char *par_path) {
 	char* ptr = strtok(path, '/');
 	int num_file = count(path, '/');
 	for (int i = 0; i < num_file; i++) {
@@ -15,4 +14,7 @@ char* ot_paren(const char* path) {
 	return par_path;
 }
 
+//choose this way
+//char par_path[100] = "";
+//ot_paren(path, par_path);
 
