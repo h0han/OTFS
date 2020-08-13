@@ -98,7 +98,6 @@ typedef struct Inode { // size : 128 * 4 = 512b
 	time_t ctime; //change time, time for changing about file metadata
 	time_t mtime; //modify time, time for changing about file data such as contents of file
 	mode_t mode;	
-	int ig[78]; // For 1024 bytes
 } inode;
 
 int count(const char *c, char x) {
@@ -201,7 +200,6 @@ static void *ot_init(struct fuse_conn_info *conn,
 			struct fuse_config *cfg)
 {
 	int size = 1024; 
-	printf("@@@@@@@INIT start @@@@@@@\n");
 	
 	// make a new file to store Filesystem data
 	char region[10] = "region";
@@ -215,10 +213,7 @@ static void *ot_init(struct fuse_conn_info *conn,
 	unsigned char* inode_bitmap;
 	unsigned char* data_bitmap;
 	inode* inode_table;
-	printf("@@@@@@@superblock size : %d @@@@@@@\n", sizeof(superblock));
-	printf("@@@@@@@inode size : %d @@@@@@@\n", sizeof(inode));
-
-
+	
 	super_block = malloc(1024);
 	super_block->sb_size = 1024;
 	super_block->ibitmap_size = 1024;
@@ -277,6 +272,7 @@ static void *ot_init(struct fuse_conn_info *conn,
 	free(data_bitmap);
 	free(inode_table);
 	free(root_dir);
+	printf("@@@@@@@INIT complete @@@@@@@\n");
 	printf("@@@@@@@Region file is created@@@@@@@\n");
 	return 0;
 
