@@ -479,6 +479,62 @@ char* ot_paren(const char* path, char *par_path) {
 
         return par_path;
 }
+static int ot_unlink(const char* path){
+        printf("###ot_unlink start###\n");
+        int inum = otfind(path);
+        printf("%s's inode num: %d\n", path, inum);
+        inode* inode_table = malloc(8*512*1024);
+        inode dirinode;
+
+        lseek(_g_fd, 2048+1024*128, SEEK_SET);
+        read(_g_fd, inode_table, 1024*8*512);
+        dirinode = inode_table[inum];
+
+        for(int i = 0; i<12;i++){
+                if(dirinode.data_num[i]!=0){
+                chanb(_g_fd, dirinode.data_num[i], 1);
+               }
+        }
+        chanb(_g_fd, inum, 0);
+
+        inode_table[inum] = dirinode;
+        lseek(_g_fd, 2048+1024*128, SEEK_SET);
+        write(_g_fd, inode_table, 1024*8*512);
+
+        printf("touch parents's data\n");
+        inode pino;
+        printf("path: %s\n", path);
+        char par_path[28] = "";
+        printf("paren(path): %s\n", ot_paren(path, par_path));
+        int pinum = otfind(ot_paren(path, par_path));
+        printf("parent inode number: %d\n", pinum);
+        if (pinum == -1){
+                return -EEXIST;
+        }
+        lseek(_g_fd, 2048+1024*128, SEEK_SET);
+        read(_g_fd, inode_table, 1024*8*512);
+        pino = inode_table[pinum];
+        Dir_Block* Dir = (Dir_Block*) malloc (4096);
+        for (int i = 0;i<12;i++){
+                int pdnum = pino.data_num[i];
+                if(pdnum ==0){
+                        printf("for %dst parent inode's date_num: %d\n", i, pdnum);
+                        //break;
+                }
+                pread(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
+                for(int k =0; k<128;k++){
+                        printf("parent's Dir->inode_num[]: %d\n", Dir->inode_num[k]);
+                        if(Dir->inode_num[k] == inum){
+                                Dir->inode_num[k] = 0;
+                                strcpy(Dir->name_list[k],"");
+                        }
+                }
+                pwrite(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
+        }
+        free(Dir);
+        printf("###ot_unlink end###\n");
+        return 0;
+}
 
 static int ot_rmdir(const char* path){
         printf("###ot_rmdir start###\n");
@@ -492,7 +548,7 @@ static int ot_rmdir(const char* path){
         dirinode = inode_table[inum];
 
         for(int i = 0; i<12;i++){
-                printf("dirinode.data_num[%d]: %d\n", i, dirinode.data_num[i]);
+                //printf("dirinode.data_num[%d]: %d\n", i, dirinode.data_num[i]);
         //}
         //for(int i = 1;i<12;i++){ //there is a data about dirctory(itself) in data_num[0]
                 if((i!=0)&&(dirinode.data_num[i]!=0)){
@@ -1121,7 +1177,7 @@ static const struct fuse_operations ot_oper = {
         .create		= ot_create,
 	.read		= ot_read,
     	.write		= ot_write,
-//      .unlink		= ot_unlink,
+        .unlink		= ot_unlink,
 	.utimens	= ot_utimens,
 	.release	= ot_release,
 	.rename		= ot_rename,	
