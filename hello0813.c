@@ -98,6 +98,7 @@ typedef struct Inode { // size : 128 * 4 = 512b
 	time_t ctime; //change time, time for changing about file metadata
 	time_t mtime; //modify time, time for changing about file data such as contents of file
 	mode_t mode;	
+	int ig[78]; // For 1024 bytes
 } inode;
 
 int count(const char *c, char x) {
@@ -200,6 +201,7 @@ static void *ot_init(struct fuse_conn_info *conn,
 			struct fuse_config *cfg)
 {
 	int size = 1024; 
+	printf("@@@@@@@INIT start @@@@@@@\n");
 	
 	// make a new file to store Filesystem data
 	char region[10] = "region";
@@ -213,7 +215,10 @@ static void *ot_init(struct fuse_conn_info *conn,
 	unsigned char* inode_bitmap;
 	unsigned char* data_bitmap;
 	inode* inode_table;
-	
+	printf("@@@@@@@superblock size : %d @@@@@@@\n", sizeof(superblock));
+	printf("@@@@@@@inode size : %d @@@@@@@\n", sizeof(inode));
+
+
 	super_block = malloc(1024);
 	super_block->sb_size = 1024;
 	super_block->ibitmap_size = 1024;
@@ -272,7 +277,6 @@ static void *ot_init(struct fuse_conn_info *conn,
 	free(data_bitmap);
 	free(inode_table);
 	free(root_dir);
-	printf("@@@@@@@INIT complete @@@@@@@\n");
 	printf("@@@@@@@Region file is created@@@@@@@\n");
 	return 0;
 
@@ -289,6 +293,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	// Check if there is same name directory -> return -EEXIST error
 
 	printf("@@@@@@@mkdir start\n");
+	printf("@@@@@@@mkdir mode : %d start\n", mode);
 	if (otfind(path) != -1) { // there is same file in path
 		printf("@@@@@mkdir EEXIST error\n");
 		fflush(stdout);
@@ -352,7 +357,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	new.ctime = cur;
 	new.mtime = cur;
 	new.atime = cur;
-	new.mode = mode;
+	new.mode = S_IFDIR | mode;
 
 	// set new directory Block	
 	Dir_Block* new_dir = malloc(4096);
@@ -464,7 +469,9 @@ static int ot_mkdir(const char *path, mode_t mode) {
 }
 char* ot_paren(const char* path, char *par_path) {
         int num_file = count(path, '/');
-        char* ptr = strtok(path, "/");
+	char temp[100]; // used strtok
+	strcpy(temp, path);
+        char* ptr = strtok(temp, "/");
         printf("%d\n", num_file);
         for (int i = 0; i < (num_file -1); i++) {
                 strcat(par_path, "/");
@@ -652,15 +659,15 @@ static int ot_getattr(const char *path, struct stat *buf,
 		else {
 			inode temp = inode_table[temp_inodenum];
 			buf->st_ino = temp.inode_num;
-			
+		/*	
 			if (temp.file_or_dir == 1) { 
 				buf->st_mode = S_IFDIR | 0755;
 			}
 			else {
 				buf->st_mode = S_IFREG | 0444;
 			}
-			
-			//buf->st_mode = temp.mode;
+		*/	
+			buf->st_mode = temp.mode;
 			buf->st_nlink = 1;
 			//buf->st_uid;
 			//buf->st_gid;
@@ -813,6 +820,8 @@ static int ot_open(const char *path, struct fuse_file_info *fi)
 static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 {
 	printf("@@@@@@@ create start @@@@@@@\n");
+	printf("@@@@@@@ create mode : %d @@@@@@@\n", mode);
+	
         
 	if (otfind(path) != -1) { // there is same file in path
                 printf("@@@@@ create EEXIST error\n");
@@ -863,7 +872,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	new.ctime = cur;
 	new.mtime = cur;
 	new.atime = cur;
-	new.mode = mode;
+	new.mode = S_IFREG | mode;
 		
 	// set new file Block
 	char* new_file = (char*) calloc(1, 4096);
@@ -1081,17 +1090,16 @@ static int ot_utimens(const char *path, const struct timespec ts[2]) {
         lseek(_g_fd, itable_location, SEEK_SET);
         read(_g_fd, inode_table, 8 * 1024 * 512); // itable load
 
-        inode fileinode = inode_table[inode_num];
 	time_t cur = time(NULL);
 	if (ts[0].tv_nsec == UTIME_NOW) {
-		fileinode.atime = cur;
+		(inode_table[inode_num]).atime = cur;
 	} else if (ts[0].tv_nsec != UTIME_OMIT) {
-		fileinode.atime = ts[0].tv_sec;
+		(inode_table[inode_num]).atime = ts[0].tv_sec;
 	}
 	if (ts[1].tv_nsec == UTIME_NOW) {
-		fileinode.mtime = cur;
+		(inode_table[inode_num]).mtime = cur;
 	} else if (ts[1].tv_nsec != UTIME_OMIT) {
-		fileinode.mtime = ts[1].tv_sec;
+		(inode_table[inode_num]).mtime = ts[1].tv_sec;
 	}
 	//temp.atime = (time_t) ts[0];
 	//temp.mtime = (time_t) ts[1];

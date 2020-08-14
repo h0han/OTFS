@@ -98,6 +98,7 @@ typedef struct Inode { // size : 128 * 4 = 512b
 	time_t ctime; //change time, time for changing about file metadata
 	time_t mtime; //modify time, time for changing about file data such as contents of file
 	mode_t mode;	
+	int ig[78]; // For 1024 bytes
 } inode;
 
 int count(const char *c, char x) {
@@ -193,6 +194,32 @@ int otfind(const char* path) { // return -1 means "There is no file"
 	free(inode_table);
 	printf("@@@@@@@ otfind complete@@@@@@\n");
 	return inode_num;
+}
+
+
+char* paren(const char* path){
+        char pfp[28];
+        strcpy(pfp, path);
+        char* ptr;
+        char* old[30];
+        ptr = strtok(pfp, "/");
+        int i = 0;
+        char* last;
+        while(ptr!=NULL){
+                old[i] = ptr;
+                i++; 
+                last = ptr;
+                ptr= strtok(NULL, "/");
+        }
+        int j = 0;
+        char* new = (char*)malloc(100);
+        strcat(new, "/");
+        while((strcmp(old[j], last))){
+                strcat(new, old[j]);
+                strcat(new, "/");
+                j++;
+        }
+        return new;
 }
 
 
@@ -352,7 +379,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	new.ctime = cur;
 	new.mtime = cur;
 	new.atime = cur;
-	new.mode = mode;
+	new.mode = S_IFDIR | mode;
 
 	// set new directory Block	
 	Dir_Block* new_dir = malloc(4096);
@@ -464,7 +491,9 @@ static int ot_mkdir(const char *path, mode_t mode) {
 }
 char* ot_paren(const char* path, char *par_path) {
         int num_file = count(path, '/');
-        char* ptr = strtok(path, "/");
+	char temp[100]; // used strtok
+	strcpy(temp, path);
+        char* ptr = strtok(temp, "/");
         printf("%d\n", num_file);
         for (int i = 0; i < (num_file -1); i++) {
                 strcat(par_path, "/");
@@ -477,27 +506,10 @@ char* ot_paren(const char* path, char *par_path) {
                 strcat(par_path, "/");
         }
 
-        return par_path;
-}
-static int ot_unlink(const char* path){
-        printf("###ot_unlink start###\n");
         int inum = otfind(path);
-        printf("%s's inode num: %d\n", path, inum);
-        inode* inode_table = malloc(8*512*1024);
-        inode dirinode;
+        inode ino;
 
-        lseek(_g_fd, 2048+1024*128, SEEK_SET);
-        read(_g_fd, inode_table, 1024*8*512);
-        dirinode = inode_table[inum];
-
-        for(int i = 0; i<12;i++){
-                if(dirinode.data_num[i]!=0){
-                chanb(_g_fd, dirinode.data_num[i], 1);
-               }
-        }
         chanb(_g_fd, inum, 0);
-
-        inode_table[inum] = dirinode;
         lseek(_g_fd, 2048+1024*128, SEEK_SET);
         write(_g_fd, inode_table, 1024*8*512);
 
@@ -534,7 +546,6 @@ static int ot_unlink(const char* path){
         free(Dir);
         printf("###ot_unlink end###\n");
         return 0;
-
 }
 
 static int ot_rmdir(const char* path){
@@ -549,62 +560,33 @@ static int ot_rmdir(const char* path){
         dirinode = inode_table[inum];
 
         for(int i = 0; i<12;i++){
-                //printf("dirinode.data_num[%d]: %d\n", i, dirinode.data_num[i]);
-        //}
-        //for(int i = 1;i<12;i++){ //there is a data about dirctory(itself) in data_num[0]
-                if((i!=0)&&(dirinode.data_num[i]!=0)){
-                        return -ENOTEMPTY; // error: there are files in dirctory
+                if(ino.DB[i] != NULL){
+                return -1; // error: there are files in dirctory
                 }
-        //}
-        //for(int j = 0; j<12;j++){
-                if(dirinode.data_num[i]!=0){
-                chanb(_g_fd, dirinode.data_num[i], 1);
-               }
         }
-        chanb(_g_fd, inum, 0);
+        for(int j = 0; j<12;j++){
+                chanb(_g_fd, ino.data_num[j], 1);
+        }
 
-        inode_table[inum] = dirinode;
-        lseek(_g_fd, 2048+1024*128, SEEK_SET);
-        write(_g_fd, inode_table, 1024*8*512);
+        lseek(_g_fd, 512, SEEK_CUR);
+        write(_g_fd, &ino, 512);
 
-        printf("touch parents's data\n");
+        //touch parents's data
         inode pino;
-        printf("path: %s\n", path);
-        char par_path[28] = "";
-        printf("paren(path): %s\n", ot_paren(path, par_path));
-        int pinum = otfind(ot_paren(path, par_path));
-        printf("parent inode number: %d\n", pinum);
-        if (pinum == -1){
-                return -EEXIST;
-        }
-        //clear!!!
-        //
-        lseek(_g_fd, 2048+1024*128, SEEK_SET);
-        read(_g_fd, inode_table, 1024*8*512);
-        pino = inode_table[pinum];
-        Dir_Block* Dir = (Dir_Block*) malloc (4096);
-        for (int i = 0;i<12;i++){
-                int pdnum = pino.data_num[i];
-                if(pdnum ==0){
-                        printf("for %dst parent inode's date_num: %d\n", i, pdnum);
-                //        break;
-                }
-                pread(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
-                for(int k =0; k<128;k++){
-                        printf("parent's Dir->inode_num[]: %d\n", Dir->inode_num[k]);
-                        if(Dir->inode_num[k] == inum){
-                                Dir->inode_num[k] = 0;
-                                strcpy(Dir->name_list[k],"");
+        int pinum = otfind(paren(path));
+        lseek(_g_fd, 2048+1028*128, SEEK_SET);
+        lseek(_g_fd, pinum, SEEK_CUR);
+        read(_g_fd, &pino, 512);
+        for (int i = 0; i <= (pino.size / 4096); i++) {
+                for (int j = 0; j < 128; j++) {
+                        if (((pino.DB[i])->inode_num[j])== inum) {
+                                strcpy((pino.DB[i])->name_list[j],"");
+                                (pino.DB[i])->inode_num[j] = 0;
                         }
                 }
-                pwrite(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
         }
-        free(Dir);
-        printf("###ot_rmdir end###\n");
         return 0;
-
 }
-
 static int ot_getattr(const char *path, struct stat *buf,
 			 struct fuse_file_info *fi)
 {
@@ -653,15 +635,15 @@ static int ot_getattr(const char *path, struct stat *buf,
 		else {
 			inode temp = inode_table[temp_inodenum];
 			buf->st_ino = temp.inode_num;
-			
+		/*	
 			if (temp.file_or_dir == 1) { 
 				buf->st_mode = S_IFDIR | 0755;
 			}
 			else {
 				buf->st_mode = S_IFREG | 0444;
 			}
-			
-			//buf->st_mode = temp.mode;
+		*/	
+			buf->st_mode = temp.mode;
 			buf->st_nlink = 1;
 			//buf->st_uid;
 			//buf->st_gid;
@@ -854,7 +836,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
 	// set new inode
 	new.filename = malloc(28);
-	new.size = 0;
+	new.size = 4096;
 	new.inode_num = new_ibitnum;
         for (int a = 0; a < 12; a++) { 
                 new.data_num[a] = 0;
@@ -864,7 +846,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	new.ctime = cur;
 	new.mtime = cur;
 	new.atime = cur;
-	new.mode = mode;
+	new.mode = S_IFREG | mode;
 		
 	// set new file Block
 	char* new_file = (char*) calloc(1, 4096);
@@ -1006,7 +988,6 @@ static int ot_read(const char *path, char *buf, size_t size, off_t offset, struc
 	long dtable_location = itable_location + super_block->itable_size;
 
 	fileinode = inode_table[inode_num];
-	// we need to think about size related with hello_read
 	int dbitnum = fileinode.data_num[0];
 	printf("dbitnum : %d\n", dbitnum);
 	printf("offset : %d\n", offset);
@@ -1015,7 +996,6 @@ static int ot_read(const char *path, char *buf, size_t size, off_t offset, struc
 		printf("READ ERROR\n");
 		return -1;
 	}
-	printf("data buf : %s\n", buf);
 	free(super_block);
 	free(inode_table);
 	printf("@@@@@@@ read complete @@@@@@@\n");
@@ -1025,7 +1005,7 @@ static int ot_read(const char *path, char *buf, size_t size, off_t offset, struc
 static int ot_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi)
 {
 	printf("@@@@@@@ write start @@@@@@@\n");
-        int inode_num = otfind(path);
+        int inode_num = fi->fh;
         //if (inode_num = (otfind(path)) == -1) {
         //        return -1; // There is no file on the path
         // }
@@ -1047,7 +1027,6 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
         fileinode = inode_table[inode_num];
 	int dbitnum = fileinode.data_num[0];
 	printf("dbitnum : %d\n", dbitnum);
-	printf("offset : %d\n", offset);
 	printf("data buf : %s\n", buf);
 	int sig = pwrite(_g_fd, buf, size, dtable_location + dbitnum * 4096 + offset);
 	if (sig  == -1) { // -1 means it does not write buf on the file
@@ -1057,7 +1036,6 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 	if ((fileinode.size - offset) < size) {  
 		inode_table[inode_num].size = offset + size;
 	}
-	printf("size : %d\n", inode_table[inode_num].size);	
 	lseek(_g_fd, itable_location, SEEK_SET);
         write(_g_fd, inode_table, 8 * 1024 * 512);
 	free(super_block);
@@ -1183,7 +1161,7 @@ static const struct fuse_operations ot_oper = {
 	.release	= ot_release,
 	.rename		= ot_rename,	
 	.destroy	= ot_destroy,
-	.unlink		= ot_unlink,
+
 };
 
 static void show_help(const char *progname)
