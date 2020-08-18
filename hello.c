@@ -87,18 +87,23 @@ typedef struct Data_bitmap { // size : 128 * 1024
 	unsigned char dbit[131072]; // 131072 = 128 * 1024
 } dbitmap;
 */
+typedef struct Indirect_block {
+	int indirect_data_num[1024];
+} indirect_block;
+
 typedef struct Inode { // size : 128 * 4 = 512b 
 	char* filename; // does it need malloc?
 	long size;
 	int inode_num;
 	int data_num[12];
+	int s_indirect;
+	int d_indirect;
 	int file_or_dir; // file == 0, dir == 1;
-	Dir_Block* DB[12];
 	time_t atime; //access time
 	time_t ctime; //change time, time for changing about file metadata
 	time_t mtime; //modify time, time for changing about file data such as contents of file
 	mode_t mode;	
-	int ig[78]; // For 1024 bytes
+	int ig[76]; // For 1024 bytes
 } inode;
 
 int count(const char *c, char x) {
@@ -879,6 +884,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	// allocation data bitmap
 	int new_dbitnum = checkb(_g_fd, 1);
 	chanb(_g_fd, new_dbitnum, 1);
+	printf("dbitnum : %d\n", new_dbitnum);
 
 	// set new inode
 	new.filename = malloc(252);
@@ -1172,6 +1178,10 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 		data_loop_num = (oldfilesize / 4096) + 1;
 	}
 	
+	if (oldfilesize == 0) {
+		data_loop_num = 1;
+	}
+
 	// we need to allocate new data block
 	int new_dbitnum;
 	int new_data_loop_num;
@@ -1217,6 +1227,7 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 	if (isbig == 0) {
 		strcat(new_data, data + offset + size);
 	}
+	printf("new data : %s\n", new_data);
 	if (fileinode.size > 4096 * 12) { 
 		// we need to use indirect pointer
 		// we need to write new data with indirect pointer
@@ -1226,12 +1237,16 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 			if (i == data_loop_num - 1) { // this is end data block
 				remain_size = fileinode.size - ((data_loop_num - 1) * 4096);
 				dbitnum = fileinode.data_num[i];
+				printf("dbitnum : %d\n", dbitnum);
 				strncpy(temp, new_data + i * 4096, remain_size);	
+				printf("temp : %s\n", temp);
 				pwrite(_g_fd, temp, remain_size, dtable_location + dbitnum * 4096);
 			}
 			else {
 				dbitnum = fileinode.data_num[i];
+				printf("dbitnum : %d\n", dbitnum);
 				strncpy(temp, new_data + i * 4096, 4096);	
+				printf("temp : %s\n", temp);
 				pwrite(_g_fd, temp, 4096, dtable_location + dbitnum * 4096);
 			}
 		}
