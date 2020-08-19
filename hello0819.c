@@ -1261,7 +1261,7 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 		for (i = 0; i < new_data_loop_num; i++) {
 			if (i == new_data_loop_num - 1) { // this is end data block
 				printf("i : %d\n", i);
-				remain_size = fileinode.size - ((data_loop_num - 1) * 4096);
+				remain_size = fileinode.size - ((new_data_loop_num - 1) * 4096);
 				printf("remain_size : %d\n", remain_size);
 				dbitnum = fileinode.data_num[i];
 				printf("dbitnum : %d\n", dbitnum);
