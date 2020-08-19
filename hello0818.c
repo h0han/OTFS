@@ -116,26 +116,6 @@ int count(const char *c, char x) {
 	return count;
 }
 
-char* ot_paren(const char* path, char *par_path) {
-        int num_file = count(path, '/');
-	char temp[252]; // used strtok
-	strcpy(temp, path);
-        char* ptr = strtok(temp, "/");
-        printf("%d\n", num_file);
-        for (int i = 0; i < (num_file -1); i++) {
-                strcat(par_path, "/");
-                strcat(par_path, ptr);
-                printf("%s\n", par_path);
-                printf("%s\n", ptr);
-                ptr = strtok(NULL, "/");
-        }
-        if(strcmp(par_path, "") ==0){
-                strcat(par_path, "/");
-        }
-
-        return par_path;
-}
-
 int otfind(const char* path) { // return -1 means "There is no file"
 	// get file	
 	if ((strcmp(path, "/")) == 0) {
@@ -405,8 +385,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	int data_loop_num; // real num is data_loop_num + 1
 	bool loop_escape;
 	Dir_Block* Dir = (Dir_Block*) malloc (4096); //parent dir
-        indirect_block indirect_b = {0,};
-
+	
 	inode dirinode;
 	// find dir with path	
 	printf("temp : %s\n", temp);
@@ -455,25 +434,6 @@ static int ot_mkdir(const char *path, mode_t mode) {
 				if (k == 16) { // There are full files in directory
 					if (i == 11) { // we need to use indirect pointer
 						// indirect pointer
-						// check first: is there indirect pointer already
-						//if(dirinode.s_indirect == 0){}
-						printf("########we have to use indirect block\n");
-                                                dirinode.s_indirect = checkb(_g_fd, 1);
-                                                chanb(_g_fd, dirinode.s_indirect, 1);
-                                                //indirect_b.indirect_data_num = dirinode.s_indirect;
-						pread(_g_fd, &indirect_b,4096, dtable_location+dirinode.s_indirect*4096);
-						//indirect_b = Dir;
-						for(int m=0; m<1024;m++){
-							if (indirect_b.indirect_data_num[m] == 0){
-								int ind_ele = checkb(_g_fd,1);
-								indirect_b.indirect_data_num[m] = ind_ele;
-								chanb(_g_fd, ind_ele, 1);
-								pread(_g_fd, (char*) Dir, 4096, dtable_location + ind_ele*4096);
-								dbit_num = ind_ele;
-								//Dir = indirect_b;
-								break;
-							}
-						}
 					}
 					else {
 						printf("@@@@@@ we need to add new datablock\n");
@@ -530,6 +490,25 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	free(Dir);
 	printf("@@@@@@@mkdir complete @@@@@@@\n");
 	return 0;
+}
+char* ot_paren(const char* path, char *par_path) {
+        int num_file = count(path, '/');
+	char temp[252]; // used strtok
+	strcpy(temp, path);
+        char* ptr = strtok(temp, "/");
+        printf("%d\n", num_file);
+        for (int i = 0; i < (num_file -1); i++) {
+                strcat(par_path, "/");
+                strcat(par_path, ptr);
+                printf("%s\n", par_path);
+                printf("%s\n", ptr);
+                ptr = strtok(NULL, "/");
+        }
+        if(strcmp(par_path, "") ==0){
+                strcat(par_path, "/");
+        }
+
+        return par_path;
 }
 static int ot_unlink(const char* path){
         printf("###ot_unlink start###\n");
@@ -1142,10 +1121,6 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
         //if (inode_num = (otfind(path)) == -1) {
         //        return -1; // There is no file on the path
         // }
-	printf("size : %ld\n", size);
-	printf("offset : %ld\n", offset);
-	printf("buf : %s\n", buf);
-	printf("buf size : %d\n", strlen(buf));
 
         superblock* super_block;
         inode* inode_table;
@@ -1189,13 +1164,11 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 	int i;
 	// set fileinode.size
 	int oldfilesize = fileinode.size;
-	printf("oldfilesize : %d\n", oldfilesize);
 	int isbig = 0; // isbig = 1, (fileinode.size - offset) < size is true
 	if ((fileinode.size - offset) < size) {  
 		fileinode.size = offset + size;
 		isbig = 1;
 	}
-	printf("fileinode.size : %ld\n", fileinode.size);
 	char* new_data = calloc(1, fileinode.size);
 
 	int data_loop_num; // we need to see data block with data_loop_num number.
@@ -1226,14 +1199,8 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 			fileinode.data_num[i] = new_dbitnum;
 		}
 	}
-	else {
-		new_data_loop_num = data_loop_num;
-	}
 
-	printf("data_loop_num : %d\n", data_loop_num);
-	printf("new_data_loop_num : %d\n", new_data_loop_num);
-	
-	if (fileinode.size > 4096 * 12) { 
+	if (oldfilesize > 4096 * 12) { 
 		// we need to use indirect pointer
 		// we need to get all data with indirect pointer
 	}
@@ -1263,41 +1230,33 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 		strncpy(new_data, data, offset); // until offset, there is the number of offset char;
 	}
 	printf("new data : %s\n", new_data);
-	printf("buf : %s\n", buf);
-	printf("buf size : %d\n", strlen(buf));
-	printf("size : %ld\n", size);
 	strncat(new_data, buf, size);
 	printf("new data : %s\n", new_data);
 	if (isbig == 0) {
 		strcat(new_data, data + offset + size);
 	}
 	printf("new data : %s\n", new_data);
-	printf("new data size : %d\n", strlen(new_data));
 	if (fileinode.size > 4096 * 12) { 
 		// we need to use indirect pointer
 		// we need to write new data with indirect pointer
 	}
 	else {
-		for (i = 0; i < new_data_loop_num; i++) {
-			if (i == new_data_loop_num - 1) { // this is end data block
-				printf("i : %d\n", i);
+		for (i = 0; i < data_loop_num; i++) {
+			if (i == data_loop_num - 1) { // this is end data block
 				remain_size = fileinode.size - ((data_loop_num - 1) * 4096);
-				printf("remain_size : %d\n", remain_size);
 				dbitnum = fileinode.data_num[i];
 				printf("dbitnum : %d\n", dbitnum);
 				strncpy(temp, new_data + i * 4096, remain_size);	
 				printf("temp : %s\n", temp);
-				printf("temp size : %ld\n", strlen(temp));
 				pwrite(_g_fd, temp, remain_size, dtable_location + dbitnum * 4096);
+				printf("temp size : %d\n", strlen(temp));
 			}
 			else {
-				printf("i : %d\n", i);
 				temp = calloc(1, 4096);
 				dbitnum = fileinode.data_num[i];
 				printf("dbitnum : %d\n", dbitnum);
 				strncpy(temp, new_data + i * 4096, 4096);	
 				printf("temp : %s\n", temp);
-				printf("temp size : %ld\n", strlen(temp));
 				pwrite(_g_fd, temp, 4096, dtable_location + dbitnum * 4096);
 			}
 		}
