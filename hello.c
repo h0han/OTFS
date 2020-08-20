@@ -932,7 +932,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	int data_loop_num;
 	bool loop_escape;
 	Dir_Block* Dir = (Dir_Block*) malloc (4096); //parent dir
-	
+	indirect_block indirect_b = {0,};	
 	inode fileinode; // parent inode
 	// find dir with path	
 	ptr = strtok(temp, "/"); // current inode
@@ -975,6 +975,24 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
                                 if (k == 16) { // There are full files in directory
                                         if (i == 11) { // we need to use indirect pointer
                                                 // indirect pointer
+						printf("########we have to use indirect block\n");
+                                                fileinode.s_indirect = checkb(_g_fd, 1);
+                                                chanb(_g_fd, fileinode.s_indirect, 1);
+                                                //indirect_b.indirect_data_num = dirinode.s_indirect;
+						pread(_g_fd, &indirect_b,4096, dtable_location+fileinode.s_indirect*4096);
+						//indirect_b = Dir;
+						for(int m=0; m<1024;m++){
+							if (indirect_b.indirect_data_num[m] == 0){
+								int ind_ele = checkb(_g_fd,1);
+								indirect_b.indirect_data_num[m] = ind_ele;
+								chanb(_g_fd, ind_ele, 1);
+								pread(_g_fd, (char*) Dir, 4096, dtable_location + ind_ele*4096);
+								dbit_num = ind_ele;
+								//Dir = indirect_b;
+								pwrite(_g_fd, &indirect_b, 4096, dtable_location+fileinode.s_indirect*4096);
+								break;
+							}
+						}
                                         }
                                         else {
                                                 printf("@@@@@@ we need to add new datablock\n");
