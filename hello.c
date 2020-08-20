@@ -629,6 +629,8 @@ static int ot_rmdir(const char* path){
         read(_g_fd, inode_table, 1024*8*512);
         pino = inode_table[pinum];
         Dir_Block* Dir = (Dir_Block*) malloc (4096);
+	indirect_block indirect_b = {0,};
+
         for (int i = 0;i<12;i++){
                 int pdnum = pino.data_num[i];
                 if(pdnum ==0){
@@ -643,6 +645,21 @@ static int ot_rmdir(const char* path){
                                 strcpy(Dir->name_list[k],"");
                         }
                 }
+		if(pino.s_indirect != 0){
+			pread(_g_fd, &indirect_b, 4096, 2048+1024*128+512*8*1024 + pino.s_indirect * 4096);
+			for(int m=0;m<1024;m++){
+				if(indirect_b.indirect_data_num[m]!=0){
+					pread(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + indirect_b.indirect_data_num[m] * 4096);
+					for(int k =0; k<16;k++){
+	        	        	        printf("parent's Dir->inode_num[]: %d\n", Dir->inode_num[k]);
+        	        	        	if(Dir->inode_num[k] == inum){
+                                			Dir->inode_num[k] = 0;
+                                			strcpy(Dir->name_list[k],"");
+						}
+					}		
+				}
+			}
+		}
                 pwrite(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
         }
         free(Dir);
