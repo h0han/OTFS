@@ -34,5 +34,5 @@ $ sudo make install
 5. /mnt/otfs로 이동 후 ./shared_memory.sh 실행
 6. filebench -f filemicro_createfiles.f 실행하면 benchmark 실행됨
 
-![benchmark](../img/benchmark.png)
+![benchmark](./img/benchmark.png)
 
