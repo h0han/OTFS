@@ -471,6 +471,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 								pread(_g_fd, (char*) Dir, 4096, dtable_location + ind_ele*4096);
 								dbit_num = ind_ele;
 								//Dir = indirect_b;
+								pwrite(_g_fd, &indirect_b, 4096, dtable_location+dirinode.s_indirect*4096);
 								break;
 							}
 						}
@@ -601,14 +602,9 @@ static int ot_rmdir(const char* path){
         dirinode = inode_table[inum];
 
         for(int i = 0; i<12;i++){
-                //printf("dirinode.data_num[%d]: %d\n", i, dirinode.data_num[i]);
-        //}
-        //for(int i = 1;i<12;i++){ //there is a data about dirctory(itself) in data_num[0]
                 if((i!=0)&&(dirinode.data_num[i]!=0)){
                         return -ENOTEMPTY; // error: there are files in dirctory
                 }
-        //}
-        //for(int j = 0; j<12;j++){
                 if(dirinode.data_num[i]!=0){
                 chanb(_g_fd, dirinode.data_num[i], 1);
                }
@@ -629,8 +625,6 @@ static int ot_rmdir(const char* path){
         if (pinum == -1){
                 return -EEXIST;
         }
-        //clear!!!
-        //
         lseek(_g_fd, 2048+1024*128, SEEK_SET);
         read(_g_fd, inode_table, 1024*8*512);
         pino = inode_table[pinum];
@@ -1113,17 +1107,17 @@ static int ot_read(const char *path, char *buf, size_t size, off_t offset, struc
 				remain_size = fileinode.size - ((data_loop_num - 1) * 4096);
 				dbitnum = fileinode.data_num[i];
 				pread(_g_fd, temp, remain_size, dtable_location + dbitnum * 4096);
-				strcat(data, temp);
+				memcpy(data + i * 4096, temp, remain_size);
 			}
 			else {
 				dbitnum = fileinode.data_num[i];
 				pread(_g_fd, temp, 4096, dtable_location + dbitnum * 4096);
-				strcat(data, temp);
+				memcpy(data + i * 4096, temp, 4096);
 			}
 		}	
 	}
 	// copy data to buf
-	strncpy(buf, data + offset, size);
+	memcpy(buf, data + offset, size);
 	
 	free(super_block);
 	free(inode_table);
@@ -1142,10 +1136,6 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
         //if (inode_num = (otfind(path)) == -1) {
         //        return -1; // There is no file on the path
         // }
-	printf("size : %ld\n", size);
-	printf("offset : %ld\n", offset);
-	printf("buf : %s\n", buf);
-	printf("buf size : %d\n", strlen(buf));
 
         superblock* super_block;
         inode* inode_table;
@@ -1247,29 +1237,28 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 				printf("dbitnum : %d\n", dbitnum);
 				pread(_g_fd, temp, remain_size, dtable_location + dbitnum * 4096);
 				printf("temp : %s\n", temp);
-				strcat(data, temp);
+				memcpy(data + i * 4096, temp, remain_size);
 			}
 			else {
 				temp = calloc(1, 4096);
 				dbitnum = fileinode.data_num[i];
 				pread(_g_fd, temp, 4096, dtable_location + dbitnum * 4096);
-				strcat(data, temp);
+				memcpy(data + i * 4096, temp, 4096);
 			}
 		}	
 	}
-	printf("data : %s\n", data);
 	// copy data to buf
 	if (offset != 0) {
-		strncpy(new_data, data, offset); // until offset, there is the number of offset char;
+		memcpy(new_data, data, offset); // until offset, there is the number of offset char;
 	}
 	printf("new data : %s\n", new_data);
 	printf("buf : %s\n", buf);
 	printf("buf size : %d\n", strlen(buf));
 	printf("size : %ld\n", size);
-	strncat(new_data, buf, size);
-	printf("new data : %s\n", new_data);
+	memcpy(new_data + offset, buf, size);
 	if (isbig == 0) {
-		strcat(new_data, data + offset + size);
+		remain_size = oldfilesize - offset - size;
+		memcpy(new_data + offset + size, data + offset + size, remain_size);
 	}
 	printf("new data : %s\n", new_data);
 	printf("new data size : %d\n", strlen(new_data));
@@ -1285,9 +1274,7 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 				printf("remain_size : %d\n", remain_size);
 				dbitnum = fileinode.data_num[i];
 				printf("dbitnum : %d\n", dbitnum);
-				strncpy(temp, new_data + i * 4096, remain_size);	
-				printf("temp : %s\n", temp);
-				printf("temp size : %ld\n", strlen(temp));
+				memcpy(temp, new_data + i * 4096, remain_size);	
 				pwrite(_g_fd, temp, remain_size, dtable_location + dbitnum * 4096);
 			}
 			else {
@@ -1295,9 +1282,7 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 				temp = calloc(1, 4096);
 				dbitnum = fileinode.data_num[i];
 				printf("dbitnum : %d\n", dbitnum);
-				strncpy(temp, new_data + i * 4096, 4096);	
-				printf("temp : %s\n", temp);
-				printf("temp size : %ld\n", strlen(temp));
+				memcpy(temp, new_data + i * 4096, 4096);
 				pwrite(_g_fd, temp, 4096, dtable_location + dbitnum * 4096);
 			}
 		}
