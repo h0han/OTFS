@@ -581,6 +581,7 @@ static int ot_mkdir(const char *path, mode_t mode) {
 								pread(_g_fd, (char*) Dir, 4096, dtable_location + ind_ele*4096);
 								dbit_num = ind_ele;
 								//Dir = indirect_b;
+								pwrite(_g_fd, &indirect_b,4096, dtable_location+dirinode.s_indirect*4096);
 								break;
 							}
 						}
@@ -746,8 +747,6 @@ static int ot_rmdir(const char* path){
         read(_g_fd, inode_table, 1024*8*512);
         pino = inode_table[pinum];
         Dir_Block* Dir = (Dir_Block*) malloc (4096);
-	indirect_block indirect_b = {0,};
-
         for (int i = 0;i<12;i++){
                 int pdnum = pino.data_num[i];
                 if(pdnum ==0){
@@ -762,21 +761,6 @@ static int ot_rmdir(const char* path){
                                 strcpy(Dir->name_list[k],"");
                         }
                 }
-		if(pino.s_indirect != 0){
-			pread(_g_fd, &indirect_b, 4096, 2048+1024*128+512*8*1024 + pino.s_indirect * 4096);
-			for(int m=0;m<1024;m++){
-				if(indirect_b.indirect_data_num[m]!=0){
-					pread(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + indirect_b.indirect_data_num[m] * 4096);
-					for(int k =0; k<16;k++){
-	        	        	        printf("parent's Dir->inode_num[]: %d\n", Dir->inode_num[k]);
-        	        	        	if(Dir->inode_num[k] == inum){
-                                			Dir->inode_num[k] = 0;
-                                			strcpy(Dir->name_list[k],"");
-						}
-					}		
-				}
-			}
-		}
                 pwrite(_g_fd, (char*) Dir, 4096, 2048+1024*128+512*8*1024 + pdnum * 4096);
         }
         free(Dir);
@@ -916,12 +900,6 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 	for (int i = 0; i < data_loop_num; i++) {
 		dbit_num = dir_inode.data_num[i];
 		pread(_g_fd, (char*) Dir, 4096, dtable_location + dbit_num * 4096); // dbit_num is offset
-		printf("Dir->name_list[0]: %s\n", Dir->name_list[0]);
-		printf("Dir->inode_num[0] : %d\n", Dir->inode_num[0]);
-		printf("Dir->name_list[1]: %s\n", Dir->name_list[1]);
-		printf("Dir->inode_num[1] : %d\n", Dir->inode_num[1]);
-		printf("Dir->name_list[2]: %s\n", Dir->name_list[2]);
-		printf("Dir->inode_num[2] : %d\n", Dir->inode_num[2]);
 		for (k = 0; k < 16; k++) {  // k = 0 -> ".", k = 1 -> ".."
 			if ((strcmp(Dir->name_list[k], ".")) == 0) {
 				continue;
@@ -1176,7 +1154,7 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	int data_loop_num;
 	bool loop_escape;
 	Dir_Block* Dir = (Dir_Block*) malloc (4096); //parent dir
-	indirect_block indirect_b = {0,};	
+	
 	inode fileinode; // parent inode
 	// find dir with path	
 	ptr = strtok(temp, "/"); // current inode
@@ -1219,24 +1197,6 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
                                 if (k == 16) { // There are full files in directory
                                         if (i == 11) { // we need to use indirect pointer
                                                 // indirect pointer
-						printf("########we have to use indirect block\n");
-                                                fileinode.s_indirect = checkb(_g_fd, 1);
-                                                chanb(_g_fd, fileinode.s_indirect, 1);
-                                                //indirect_b.indirect_data_num = dirinode.s_indirect;
-						pread(_g_fd, &indirect_b,4096, dtable_location+fileinode.s_indirect*4096);
-						//indirect_b = Dir;
-						for(int m=0; m<1024;m++){
-							if (indirect_b.indirect_data_num[m] == 0){
-								int ind_ele = checkb(_g_fd,1);
-								indirect_b.indirect_data_num[m] = ind_ele;
-								chanb(_g_fd, ind_ele, 1);
-								pread(_g_fd, (char*) Dir, 4096, dtable_location + ind_ele*4096);
-								dbit_num = ind_ele;
-								//Dir = indirect_b;
-								pwrite(_g_fd, &indirect_b, 4096, dtable_location+fileinode.s_indirect*4096);
-								break;
-							}
-						}
                                         }
                                         else {
                                                 printf("@@@@@@ we need to add new datablock\n");
@@ -1399,10 +1359,6 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
         //if (inode_num = (otfind(path)) == -1) {
         //        return -1; // There is no file on the path
         // }
-	printf("size : %ld\n", size);
-	printf("offset : %ld\n", offset);
-	printf("buf : %s\n", buf);
-	printf("buf size : %d\n", strlen(buf));
 
         superblock* super_block;
         inode* inode_table;
@@ -1514,22 +1470,18 @@ static int ot_write(const char *path, const char *buf, size_t size, off_t offset
 			}
 		}	
 	}
-	printf("data : %s\n", data);
 	// copy data to buf
 	if (offset != 0) {
 		memcpy(new_data, data, offset); // until offset, there is the number of offset char;
 	}
 	printf("new data : %s\n", new_data);
 	printf("buf : %s\n", buf);
-	printf("buf size : %d\n", strlen(buf));
 	printf("size : %ld\n", size);
 	memcpy(new_data + offset, buf, size);
 	if (isbig == 0) {
 		remain_size = oldfilesize - offset - size;
 		memcpy(new_data + offset + size, data + offset + size, remain_size);
 	}
-	printf("new data : %s\n", new_data);
-	printf("new data size : %d\n", strlen(new_data));
 	if (fileinode.size > 4096 * 12) { 
 		// we need to use indirect pointer
 		// we need to write new data with indirect pointer
