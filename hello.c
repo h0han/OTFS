@@ -470,6 +470,26 @@ static int ot_mkdir(const char *path, mode_t mode) {
 	}
 	if (indirect_flag == 1) {
 		// see indirect block
+		printf("please make me check indirect pointer doing well: %d\n", parent.s_indirect);
+                if(!(parent.s_indirect)){
+      			printf("########we have to use indirect block\n");
+      			parent.s_indirect = checkb(_g_fd, 1);
+      			chanb(_g_fd, parent.s_indirect, 1);
+		}
+		//indirect_b.indirect_data_num = dirinode.s_indirect
+                pread(_g_fd, &indirect_b,4096, dtable_location+parent.s_indirect*4096);
+		for(int m=0; m<1024;m++){
+  			if (indirect_b.indirect_data_num[m] == 0){
+				int ind_ele = checkb(_g_fd,1);
+      				indirect_b.indirect_data_num[m] = ind_ele;
+      				chanb(_g_fd, ind_ele, 1);
+                          	//pread(_g_fd, parent_dir, 4096, dtable_location + ind_ele*4096);
+                          	//dbit_num = parent.s_indirect;
+                          	//Dir = indirect_b;
+                          	break;
+                	}
+                }
+                pwrite(_g_fd, &indirect_b, 4096, dtable_location+parent.s_indirect*4096);
 	}
 	printf("input_num : %d\n", input_num);
 	printf("dbit_num : %d\n", dbit_num);
@@ -1131,6 +1151,26 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	}
 	if (indirect_flag == 1) {
 		// see indirect block
+		printf("please make me check indirect pointer doing well: %d\n", parent.s_indirect);
+                if(!(parent.s_indirect)){
+      			printf("########we have to use indirect block\n");
+      			parent.s_indirect = checkb(_g_fd, 1);
+      			chanb(_g_fd, parent.s_indirect, 1);
+		}
+                //indirect_b.indirect_data_num = dirinode.s_indirect
+                pread(_g_fd, &indirect_b,4096, dtable_location+parent.s_indirect*4096);
+		for(int m=0; m<1024;m++){
+  			if (indirect_b.indirect_data_num[m] == 0){
+      				int ind_ele = checkb(_g_fd,1);
+      				indirect_b.indirect_data_num[m] = ind_ele;
+       				chanb(_g_fd, ind_ele, 1);
+                          	//pread(_g_fd, parent_dir, 4096, dtable_location + ind_ele*4096);
+                          	//dbit_num = parent.s_indirect;
+                          	//Dir = indirect_b;
+                          	break;
+                	}
+                }
+                pwrite(_g_fd, &indirect_b, 4096, dtable_location+parent.s_indirect*4096);
 	}
 	printf("input_num : %d\n", input_num);
 	printf("dbit_num : %d\n", dbit_num);
@@ -1749,4 +1789,5 @@ int main(int argc, char *argv[])
 	fuse_opt_free_args(&args);
 	return ret;
 }
+
 
