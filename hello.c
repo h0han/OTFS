@@ -960,6 +960,18 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		//	printf("temp.filename : %s\n", temp.filename);
 			filler(buf, temp.filename, NULL, 0, 0);
 		}
+		if((i==11)&&(k==15)){
+                indirect_block inb;
+                printf("read: We need indirect pointer\n");
+                pread(_g_fd, &inb, 4096, dtable_location+dir_inode.s_indirect*4096);
+                printf("s_indicrect num: %d\n", dir_inode.s_indirect);
+                for(int m=0;m<1024;m++){
+                    pread(_g_fd, (char*) Dir, 4096, dtable_location+inb.indirect_data_num[m]*4096);
+                    temp = inode_table[inb.indirect_data_num[m]];
+                    filler(buf, temp.filename, NULL, 0, 0);
+                }
+            }
+
 	}
 	free(super_block);
 	//free(inode_bitmap);
