@@ -469,27 +469,23 @@ static int ot_mkdir(const char *path, mode_t mode) {
 		}
 	}
 	if (indirect_flag == 1) {
-		// see indirect block
-		printf("please make me check indirect pointer doing well: %d\n", parent.s_indirect);
-                if(!(parent.s_indirect)){
-      			printf("########we have to use indirect block\n");
-      			parent.s_indirect = checkb(_g_fd, 1);
-      			chanb(_g_fd, parent.s_indirect, 1);
+		printf("########we have to use indirect block\n");
+                new.s_indirect = checkb(_g_fd, 1);
+                chanb(_g_fd, new.s_indirect, 1);
+                //indirect_b.indirect_data_num = dirinode.s_indirect
+                pread(_g_fd, &indirect_b,4096, dtable_location+new.s_indirect*4096);
+                for(int m=0; m<1024;m++){
+                        if (indirect_b.indirect_data_num[m] == 0){
+                                int ind_ele = checkb(_g_fd,1);
+                                indirect_b.indirect_data_num[m] = ind_ele;
+                                parent.data_num[i+1] = dbit_num;
+                                chanb(_g_fd, ind_ele, 1);
+                                pread(_g_fd, parent_dir, 4096, dtable_location + ind_ele*4096);
+                                dbit_num = ind_ele;
+                                //Dir = indirect_b;
+                                break;
+			}// see indirect block	
 		}
-		//indirect_b.indirect_data_num = dirinode.s_indirect
-                pread(_g_fd, &indirect_b,4096, dtable_location+parent.s_indirect*4096);
-		for(int m=0; m<1024;m++){
-  			if (indirect_b.indirect_data_num[m] == 0){
-				int ind_ele = checkb(_g_fd,1);
-      				indirect_b.indirect_data_num[m] = ind_ele;
-      				chanb(_g_fd, ind_ele, 1);
-                          	//pread(_g_fd, parent_dir, 4096, dtable_location + ind_ele*4096);
-                          	//dbit_num = parent.s_indirect;
-                          	//Dir = indirect_b;
-                          	break;
-                	}
-                }
-                pwrite(_g_fd, &indirect_b, 4096, dtable_location+parent.s_indirect*4096);
 	}
 	printf("input_num : %d\n", input_num);
 	printf("dbit_num : %d\n", dbit_num);
@@ -960,18 +956,6 @@ static int ot_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		//	printf("temp.filename : %s\n", temp.filename);
 			filler(buf, temp.filename, NULL, 0, 0);
 		}
-		if((i==11)&&(k==15)){
-                indirect_block inb;
-                printf("read: We need indirect pointer\n");
-                pread(_g_fd, &inb, 4096, dtable_location+dir_inode.s_indirect*4096);
-                printf("s_indicrect num: %d\n", dir_inode.s_indirect);
-                for(int m=0;m<1024;m++){
-                    pread(_g_fd, (char*) Dir, 4096, dtable_location+inb.indirect_data_num[m]*4096);
-                    temp = inode_table[inb.indirect_data_num[m]];
-                    filler(buf, temp.filename, NULL, 0, 0);
-                }
-            }
-
 	}
 	free(super_block);
 	//free(inode_bitmap);
@@ -1162,26 +1146,23 @@ static int ot_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 	}
 	if (indirect_flag == 1) {
 		// see indirect block
-		printf("please make me check indirect pointer doing well: %d\n", parent.s_indirect);
-                if(!(parent.s_indirect)){
-      			printf("########we have to use indirect block\n");
-      			parent.s_indirect = checkb(_g_fd, 1);
-      			chanb(_g_fd, parent.s_indirect, 1);
-		}
+	        printf("########we have to use indirect block\n");
+                new.s_indirect = checkb(_g_fd, 1);
+                chanb(_g_fd, new.s_indirect, 1);
                 //indirect_b.indirect_data_num = dirinode.s_indirect
-                pread(_g_fd, &indirect_b,4096, dtable_location+parent.s_indirect*4096);
-		for(int m=0; m<1024;m++){
-  			if (indirect_b.indirect_data_num[m] == 0){
-      				int ind_ele = checkb(_g_fd,1);
-      				indirect_b.indirect_data_num[m] = ind_ele;
-       				chanb(_g_fd, ind_ele, 1);
-                          	//pread(_g_fd, parent_dir, 4096, dtable_location + ind_ele*4096);
-                          	//dbit_num = parent.s_indirect;
-                          	//Dir = indirect_b;
-                          	break;
-                	}
-                }
-                pwrite(_g_fd, &indirect_b, 4096, dtable_location+parent.s_indirect*4096);
+                pread(_g_fd, &indirect_b,4096, dtable_location+new.s_indirect*4096);
+                for(int m=0; m<1024;m++){
+                        if (indirect_b.indirect_data_num[m] == 0){
+                                int ind_ele = checkb(_g_fd,1);
+                                indirect_b.indirect_data_num[m] = ind_ele;
+                                parent.data_num[i+1] = dbit_num;
+                                chanb(_g_fd, ind_ele, 1);
+                                pread(_g_fd, parent_dir, 4096, dtable_location + ind_ele*4096);
+                                dbit_num = ind_ele;
+                                //Dir = indirect_b;
+                                break;
+                        }
+		}
 	}
 	printf("input_num : %d\n", input_num);
 	printf("dbit_num : %d\n", dbit_num);
